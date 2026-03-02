@@ -1,0 +1,125 @@
+/* ── SHADOW SURVIVOR: ETERNAL NIGHT ── main.css ── */
+:root {
+    --primary: #ff2255;
+    --secondary: #4466ff;
+    --accent: #ffd700;
+    --accent2: #00ffcc;
+    --bg: #03010a;
+    --panel: rgba(10, 6, 20, 0.97);
+    --border: #2a1a3a;
+    --glow-red: rgba(255,34,85,0.4);
+    --glow-blue: rgba(68,102,255,0.4);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body, html {
+    width:100%; height:100%; overflow:hidden;
+    background:var(--bg); font-family:'Rajdhani',sans-serif;
+    user-select:none; -webkit-user-select:none;
+}
+
+canvas { display:block; touch-action:none; }
+
+/* ── EFFECTS ── */
+#vignette {
+    position:fixed; inset:0; pointer-events:none;
+    background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.88) 120%);
+    z-index:5;
+}
+#flash { position:fixed; inset:0; background:white; opacity:0; pointer-events:none; z-index:2000; transition:opacity 0.08s; }
+#dmg-flash { position:fixed; inset:0; background:rgba(200,0,40,0); pointer-events:none; z-index:6; transition:background 0.12s; }
+
+/* ── WAVE INDICATOR ── */
+#wave-indicator {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-family:'Orbitron',sans-serif; font-size:clamp(24px,8vw,52px);
+    color:var(--primary); text-shadow:0 0 40px var(--primary), 0 0 80px var(--glow-red);
+    pointer-events:none; z-index:200; opacity:0;
+    transition:opacity 0.3s; letter-spacing:6px; text-transform:uppercase;
+}
+
+/* ── KILL MILESTONE ── */
+#kill-milestone {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(0);
+    font-family:'Orbitron',sans-serif; font-size:clamp(20px,6vw,40px); font-weight:900;
+    color:var(--accent); text-shadow:0 0 40px var(--accent); pointer-events:none; z-index:201;
+    transition: transform 0.3s cubic-bezier(0.2,1.5,0.4,1), opacity 0.3s;
+}
+
+/* ── MINIMAP ── */
+#minimap {
+    position:fixed; bottom:20px; right:16px;
+    width:110px; height:110px; z-index:20;
+    border:1px solid #3a1a4a; background:rgba(3,1,15,0.88);
+    border-radius:4px; overflow:hidden;
+    box-shadow:0 0 14px rgba(68,0,80,0.5);
+}
+#minimap canvas { width:100%; height:100%; }
+#minimap-label {
+    position:absolute; bottom:4px; left:50%; transform:translateX(-50%);
+    font-size:8px; color:#554455; letter-spacing:2px; font-family:'Orbitron',sans-serif;
+}
+
+/* ── WEAPON BAR ── */
+#weapon-bar {
+    position:fixed; bottom:28px; left:16px;
+    display:flex; gap:6px; z-index:20; pointer-events:none;
+}
+.weapon-icon {
+    width:42px; height:42px; background:var(--panel);
+    border:1px solid #332244; border-radius:6px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:18px; position:relative;
+}
+.weapon-icon .wlvl {
+    position:absolute; bottom:2px; right:4px;
+    font-size:7px; color:#aa88ff; font-family:'Orbitron',sans-serif;
+}
+
+/* ── ACHIEVEMENT POPUP ── */
+#achievement-popup {
+    position:fixed; top:80px; right:-300px; z-index:300;
+    background:rgba(10,6,20,0.97); border:1px solid var(--accent);
+    padding:12px 20px; border-radius:6px;
+    box-shadow:0 0 20px rgba(255,215,0,0.3);
+    transition:right 0.4s cubic-bezier(0.4,0,0.2,1);
+    max-width:250px;
+}
+#achievement-popup.show { right:16px; }
+.ach-title { font-size:9px; color:var(--accent); letter-spacing:3px; font-family:'Orbitron',sans-serif; }
+.ach-name { font-size:14px; color:white; margin-top:3px; }
+.ach-desc { font-size:11px; color:#776688; margin-top:2px; }
+
+/* ── MOBILE CONTROLS ── */
+#mobile-ui {
+    position:fixed; bottom:0; left:0; width:100%; height:200px;
+    pointer-events:none; z-index:50;
+}
+.joystick-area {
+    position:absolute; bottom:50px; left:50%; transform:translateX(-50%);
+    width:120px; height:120px;
+    background:rgba(255,34,85,0.03); border:2px solid rgba(255,34,85,0.15);
+    border-radius:50%; pointer-events:auto;
+}
+#stick {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:50px; height:50px;
+    background:radial-gradient(circle, rgba(255,34,85,0.35), rgba(255,34,85,0.1));
+    border:2px solid rgba(255,34,85,0.55); border-radius:50%;
+}
+.action-btn {
+    position:absolute; bottom:60px; right:36px;
+    width:86px; height:86px;
+    background:rgba(255,34,85,0.12); border:2px solid var(--primary);
+    border-radius:50%; pointer-events:auto;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Orbitron',sans-serif; color:white; font-size:9px; text-align:center;
+    box-shadow:0 0 18px var(--glow-red); line-height:1.6; letter-spacing:1px;
+}
+#pause-btn {
+    position:fixed; top:14px; right:16px;
+    padding:7px 16px; background:rgba(0,0,0,0.6); border:1px solid #3a2a4a;
+    color:#887799; border-radius:4px; pointer-events:auto; z-index:100;
+    font-family:'Orbitron',sans-serif; font-size:11px; cursor:pointer; letter-spacing:1px;
+}
