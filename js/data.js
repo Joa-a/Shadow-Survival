@@ -61,34 +61,130 @@ const UPGRADES_DB = {
     'Vampire':    { name:'Vampiro',      icon:'\ud83e\dddb', desc:'Roba 1 HP por cada 5 kills.',                                       type:'stat'   },
 };
 
-// ═══ ACHIEVEMENTS — persisted in localStorage, earned only ONCE per device ═══
+// ═══════════════════════════════════════════════════════════════
+//  ACHIEVEMENTS — persisted in localStorage, awarded ONCE per device forever.
+//  Each def has: id, icon, name, desc, condition(game→bool),
+//  and optionally: progress(game→[current,max]) for progress bar display.
+// ═══════════════════════════════════════════════════════════════
 const ACHIEVEMENT_DEFS = [
-    { id:'first_blood',  name:'Primera Sangre',  desc:'Mata tu primer enemigo',   condition: g => g.kills >= 1       },
-    { id:'combo10',      name:'Combo Asesino',   desc:'Alcanza x10 combo',        condition: g => g.combo >= 10      },
-    { id:'level5',       name:'Superviviente',   desc:'Llega al nivel 5',         condition: g => g.player?.level>=5 },
-    { id:'kills50',      name:'Cazador',         desc:'50 eliminaciones',         condition: g => g.kills >= 50      },
-    { id:'kills100',     name:'Exterminador',    desc:'100 eliminaciones',        condition: g => g.kills >= 100     },
-    { id:'survive3min',  name:'Resistente',      desc:'Sobrevive 3 minutos',      condition: g => g.time >= 180      },
-    { id:'bossslayer',   name:'Mata-Jefes',      desc:'Derrota a un Jefe',        condition: g => g.bossKills >= 1   },
+    // ── Combat milestones ──────────────────────────────────────
+    {
+        id:'first_blood', icon:'🩸', name:'Primera Sangre',
+        desc:'Mata tu primer enemigo',
+        condition: g => g.kills >= 1,
+        progress:  g => [Math.min(g.kills, 1), 1],
+    },
+    {
+        id:'kills50', icon:'⚔️', name:'Cazador',
+        desc:'50 eliminaciones en una partida',
+        condition: g => g.kills >= 50,
+        progress:  g => [Math.min(g.kills, 50), 50],
+    },
+    {
+        id:'kills100', icon:'💀', name:'Exterminador',
+        desc:'100 eliminaciones en una partida',
+        condition: g => g.kills >= 100,
+        progress:  g => [Math.min(g.kills, 100), 100],
+    },
+    {
+        id:'kills300', icon:'☠️', name:'Ángel de la Muerte',
+        desc:'300 eliminaciones en una partida',
+        condition: g => g.kills >= 300,
+        progress:  g => [Math.min(g.kills, 300), 300],
+    },
+    // ── Combo ─────────────────────────────────────────────────
+    {
+        id:'combo10', icon:'🔥', name:'Combo Asesino',
+        desc:'Alcanza x10 combo',
+        condition: g => g.combo >= 10,
+        progress:  g => [Math.min(g.combo, 10), 10],
+    },
+    {
+        id:'combo20', icon:'💥', name:'Imparable',
+        desc:'Alcanza x20 combo',
+        condition: g => g.combo >= 20,
+        progress:  g => [Math.min(g.combo, 20), 20],
+    },
+    // ── Level / Survival ──────────────────────────────────────
+    {
+        id:'level5', icon:'⬆️', name:'Superviviente',
+        desc:'Llega al nivel 5',
+        condition: g => g.player?.level >= 5,
+        progress:  g => [Math.min(g.player?.level||0, 5), 5],
+    },
+    {
+        id:'level10', icon:'🌟', name:'Veterano',
+        desc:'Llega al nivel 10',
+        condition: g => g.player?.level >= 10,
+        progress:  g => [Math.min(g.player?.level||0, 10), 10],
+    },
+    {
+        id:'survive3min', icon:'⏱️', name:'Resistente',
+        desc:'Sobrevive 3 minutos',
+        condition: g => g.time >= 180,
+        progress:  g => [Math.min(Math.floor(g.time), 180), 180],
+    },
+    {
+        id:'survive7min', icon:'🌙', name:'Noche Eterna',
+        desc:'Sobrevive 7 minutos',
+        condition: g => g.time >= 420,
+        progress:  g => [Math.min(Math.floor(g.time), 420), 420],
+    },
+    // ── Boss / Special ────────────────────────────────────────
+    {
+        id:'bossslayer', icon:'👹', name:'Mata-Jefes',
+        desc:'Derrota a un Jefe',
+        condition: g => g.bossKills >= 1,
+        progress:  g => [Math.min(g.bossKills, 1), 1],
+    },
+    {
+        id:'boss3', icon:'🏆', name:'Cazador de Titanes',
+        desc:'Derrota 3 Jefes en una partida',
+        condition: g => g.bossKills >= 3,
+        progress:  g => [Math.min(g.bossKills, 3), 3],
+    },
 ];
 
-// Persistent achievement storage
+// ═══════════════════════════════════════════════════════════════
+//  ACHIEVEMENT STORE — localStorage persistence.
+//  Achievements are earned ONCE globally, persist across sessions.
+//  Session-new awards are tracked separately to avoid re-popups.
+// ═══════════════════════════════════════════════════════════════
 const AchievementStore = {
-    _key: 'ss_achievements_v1',
-    _earned: null,
+    _key:        'ss_achievements_v1',
+    _earned:     null,   // Set of earned IDs (all time)
+    _newThisSession: new Set(),   // IDs earned THIS session only
+
     load() {
         try {
-            const raw = localStorage.getItem(this._key);
+            const raw    = localStorage.getItem(this._key);
             this._earned = raw ? new Set(JSON.parse(raw)) : new Set();
         } catch(e) { this._earned = new Set(); }
+        this._newThisSession.clear();
     },
-    isEarned(id) { return this._earned && this._earned.has(id); },
+
+    isEarned(id) {
+        return !!(this._earned && this._earned.has(id));
+    },
+
     earn(id) {
         if (!this._earned) this.load();
+        if (this._earned.has(id)) return false;   // already earned — no popup
         this._earned.add(id);
-        try { localStorage.setItem(this._key, JSON.stringify([...this._earned])); } catch(e) {}
+        this._newThisSession.add(id);
+        try {
+            localStorage.setItem(this._key, JSON.stringify([...this._earned]));
+        } catch(e) {}
+        return true;   // newly earned — show popup
     },
-    getAll() { return this._earned ? [...this._earned] : []; }
+
+    getAll()       { return this._earned ? [...this._earned] : []; },
+    getCount()     { return this._earned ? this._earned.size : 0; },
+    getTotalCount(){ return ACHIEVEMENT_DEFS.length; },
+
+    // For game-over summary — which were newly earned this session
+    getNewThisSession() { return [...this._newThisSession]; },
+    clearSession()      { this._newThisSession.clear(); },
 };
 AchievementStore.load();
 

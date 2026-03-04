@@ -1,110 +1,53 @@
-# Shadow Survivor: Eternal Night
+# SHADOW SURVIVOR: ETERNAL NIGHT — v2.0
 
-## Estructura del Proyecto
-
-```
-shadow-survivor/
-├── index.html          ← Punto de entrada principal
-├── README.md           ← Este archivo
-│
-├── css/
-│   ├── main.css        ← Estilos base, efectos, controles móviles
-│   ├── hud.css         ← Barras de HP/XP, top bar, boss bar, buffs
-│   └── overlays.css    ← Pantallas de inicio, nivel, pausa, game over
-│
-└── js/
-    ├── config.js       ← Constantes y configuración global
-    ├── audio.js        ← Motor de audio (Web Audio API)
-    ├── utils.js        ← Funciones matemáticas (M.dist, M.lerp, etc.)
-    ├── data.js         ← Datos del juego: personajes, upgrades, logros, enemigos
-    ├── entity.js       ← Clase base Entity
-    ├── player.js       ← Clase Player (movimiento, trail, dibujo)
-    ├── enemy.js        ← Clase Enemy (IA, patrones de boss, dibujo)
-    ├── weapons.js      ← Clase Weapon base + WeaponFactory (todas las armas)
-    └── game.js         ← Controlador principal del juego (update/draw loop)
-```
-
-## Cómo Jugar
-
-Abre `index.html` en tu navegador. No requiere servidor — funciona desde archivo local.
-
-> ⚠️ Algunos navegadores bloquean módulos JS desde `file://`. Si tienes problemas, usa un servidor local:
-> ```bash
-> # Python
-> python -m http.server 8080
-> # Node.js
-> npx serve .
-> ```
+Juego de supervivencia roguelite tipo Vampire Survivors sobre canvas HTML5 puro.
+Abre `index.html` en cualquier navegador moderno. No requiere servidor ni instalación.
 
 ## Controles
 
-| Acción      | Teclado          | Móvil           |
-|-------------|------------------|-----------------|
-| Mover       | WASD / Flechas   | Joystick izq.   |
-| Ultra Burst | Espacio          | Botón ULTRA     |
-| Pausa       | Click en PAUSA   | Click en PAUSA  |
+| Tecla | Acción |
+|---|---|
+| WASD / Flechas | Mover |
+| Espacio | Ultra (habilidad especial) |
+| P | Pausar |
+| Joystick + botón | Móvil |
 
 ## Personajes
 
-| Nombre  | Arma Inicial | Descripción              |
-|---------|-------------|--------------------------|
-| Alaric  | Látigo      | Tanque resistente        |
-| Zale    | Varita      | Alto daño, frágil        |
-| Kael    | Daga        | Muy rápido               |
-| Elora   | Orbe        | Equilibrado              |
-| Ryxa    | Ballesta    | Largo alcance            |
-| Vorath  | Rayo        | Cadenas eléctricas       |
+| | Nombre | Arma | Fortaleza |
+|---|---|---|---|
+| ☠ | Alaric | Látigo | ATK alto |
+| 🔮 | Seraphel | Varita Mágica | ATK máximo |
+| 🗡 | Kael | Cuchillo | Velocidad |
+| ✨ | Elora | Golpe Santo (melee) | HP alto |
+| 🏹 | Ryxa | Ballesta | ATK / VEL |
+| ⚡ | Vorath | Rayo | ATK / HP |
 
-## Armas Disponibles
+## Cambios v2.0
 
-- 〰️ Látigo — perforante horizontal
-- 🪄 Varita mágica — teledirigida (multi-objetivo en niveles altos)
-- 🔪 Daga — velocísima
-- 📖 Orbe sagrado — orbita al jugador (hasta 3 orbes)
-- 🧄 Aura de ajo — daño constante en área
-- ⚡ Rayo en cadena — salta entre enemigos
-- 🏹 Ballesta — flecha penetrante
-- 🔥 Llama — zona de fuego persistente
+### Pantallas nuevas
+- Pantalla de **carga animada** (canvas, barra de progreso, partículas)
+- Pantalla de **título con lore** (estrellas, luna, texto con máquina de escribir)
 
-## Tipos de Enemigos
+### Armas rediseñadas
+- **Látigo (Alaric)** — Curva bezier real, apunta al enemigo, se adelgaza hasta la punta
+- **Cuchillo (Kael)** — Daga dibujada con hoja/guarda/empuñadura, gira al volar
+- **Golpe Santo (Elora)** — Cono melee divino, rango estricto ≤125px, cooldown rápido
+- **Rayo (Vorath)** — Rango máximo 350px al primer objetivo, indicador visual si no hay rango
+- **Ballesta (Ryxa)** — Rango máximo 480px exacto (ya no vuela al infinito)
 
-- **Swarm** 🟣 — Zigzag, rápidos en grupo
-- **Chase** 🟣 — Persecución directa
-- **Ranged** 🔵 — Mantiene distancia y dispara
-- **Charger** 🟠 — Carga embestidas
-- **Exploder** 🟢 — Explota al morir
-- **Phantom** 🟣 — Se teleporta
-- **Élite** ⭐ — Versiones mejoradas con aura dorada
-- **Boss** 🔴 — Aparece cada minuto, 3 patrones de ataque
+### Logros persistentes (localStorage)
+- 12 logros guardados una sola vez por dispositivo
+- Popup con icono + contador global al ganar uno
+- Galería completa en pantalla de pausa (con barra de progreso en los bloqueados)
+- Resumen de logros ganados esta partida en Game Over
 
-## Para Desarrolladores
+## Archivos
 
-### Añadir un nuevo personaje
-
-En `js/data.js`, añade un objeto al array `CHARACTERS`:
-```js
-{ id:'nuevo', name:'Nombre', icon:'🆕', hp:50, speed:200, weapon:'MagicWand', desc:'Descripción.', stats:{hp:'●●●○○',spd:'●●●○○',atk:'●●●○○'} }
 ```
-
-### Añadir un nuevo arma
-
-1. En `js/data.js`, añade la entrada a `UPGRADES_DB`.
-2. En `js/weapons.js`, añade la clase a `WeaponFactory`:
-```js
-'MiArma': class extends Weapon {
-    constructor(p) { super(p, 'MiArma', 15, 1.0); }
-    update(dt) {
-        this.timer -= dt;
-        if (this.timer <= 0) {
-            this.timer = this.cooldown;
-            // Lógica del arma aquí
-        }
-    }
-    // Opcional: draw(ctx, off) para armas persistentes
-}
+index.html    css/  js/
+  main.css hud.css overlays.css
+  config.js utils.js audio.js data.js
+  entity.js player.js enemy.js
+  weapons.js intro.js game.js
 ```
-
-### Añadir un nuevo tipo de enemigo
-
-1. Añade los datos a `ENEMY_TYPES` en `js/data.js`.
-2. En `js/enemy.js`, añade el método `_updateNuevoTipo(dt, ang)` y el case en `update()`.

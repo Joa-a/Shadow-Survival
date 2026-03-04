@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SHADOW SURVIVOR: ETERNAL NIGHT</title>
+    <!-- iOS full-screen / safe-area support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#03010a">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/hud.css">
@@ -60,8 +65,14 @@
 </div>
 
 <div id="achievement-popup">
-    <div class="ach-title">&#127942; LOGRO DESBLOQUEADO</div>
-    <div class="ach-name" id="ach-name"></div>
+    <div class="ach-header">
+        <span class="ach-icon" id="ach-icon">&#127942;</span>
+        <div>
+            <div class="ach-title">LOGRO DESBLOQUEADO</div>
+            <div class="ach-name" id="ach-name"></div>
+        </div>
+        <span class="ach-counter" id="ach-counter">0/12</span>
+    </div>
     <div class="ach-desc" id="ach-desc"></div>
 </div>
 
@@ -92,6 +103,10 @@
 <div id="pause-screen">
     <h2>&#9208; PAUSA</h2>
     <div class="pause-stats" id="pause-stats"></div>
+    <div class="pause-ach-section">
+        <div class="pause-ach-header" id="pause-ach-count">0 / 12 LOGROS</div>
+        <div class="pause-ach-gallery" id="pause-ach-gallery"></div>
+    </div>
     <div class="pause-btns">
         <button class="btn-secondary" onclick="Game.togglePause()">&#9654; REANUDAR</button>
         <button class="btn-secondary" onclick="location.reload()">&#8635; REINICIAR</button>

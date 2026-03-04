@@ -236,14 +236,41 @@ const Game = {
     _showPauseScreen() {
         const p = this.player;
         const m = Math.floor(this.time / 60), s = Math.floor(this.time % 60);
+        const earnedCount = AchievementStore.getCount();
+        const totalCount  = AchievementStore.getTotalCount();
+
+        // Build achievement rows for pause screen
+        const achRows = ACHIEVEMENT_DEFS.map(def => {
+            const done = AchievementStore.isEarned(def.id);
+            let progressHTML = '';
+            if (!done && def.progress) {
+                const [cur, max] = def.progress(this);
+                const pct = Math.min(100, Math.round(cur / max * 100));
+                progressHTML = `<div class="ach-progress-bar"><div class="ach-progress-fill" style="width:${pct}%"></div></div><span class="ach-progress-label">${cur}/${max}</span>`;
+            }
+            return `<div class="ach-row ${done ? 'ach-done' : 'ach-locked'}">
+                <span class="ach-row-icon">${done ? def.icon : '🔒'}</span>
+                <div class="ach-row-info">
+                    <div class="ach-row-name">${done ? def.name : '???'}</div>
+                    <div class="ach-row-desc">${done ? def.desc : (def.progress ? progressHTML : 'Desbloquea para ver')}</div>
+                </div>
+            </div>`;
+        }).join('');
+
         document.getElementById('pause-stats').innerHTML = `
             <div class="pause-stat"><div class="ps-label">TIEMPO</div><div class="ps-value">${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</div></div>
             <div class="pause-stat"><div class="ps-label">KILLS</div><div class="ps-value">${this.kills}</div></div>
             <div class="pause-stat"><div class="ps-label">NIVEL</div><div class="ps-value">${p.level}</div></div>
-            <div class="pause-stat"><div class="ps-label">COMBO</div><div class="ps-value">${this.combo}</div></div>
-            <div class="pause-stat"><div class="ps-label">ARMAS</div><div class="ps-value">${p.weapons.length}</div></div>
             <div class="pause-stat"><div class="ps-label">HP</div><div class="ps-value">${Math.ceil(p.hp)}/${p.maxHp}</div></div>
         `;
+
+        // Achievement gallery section
+        const gallery = document.getElementById('pause-ach-gallery');
+        if (gallery) {
+            document.getElementById('pause-ach-count').textContent = `${earnedCount} / ${totalCount} LOGROS`;
+            gallery.innerHTML = achRows;
+        }
+
         document.getElementById('pause-screen').style.display = 'flex';
     },
 
@@ -416,21 +443,28 @@ const Game = {
     // ─────────────────────────── ACHIEVEMENTS ────────────────────
     checkAchievements() {
         ACHIEVEMENT_DEFS.forEach(def => {
-            if (AchievementStore.isEarned(def.id)) return; // already earned globally
+            if (AchievementStore.isEarned(def.id)) return; // already earned globally — skip
             if (def.condition(this)) {
-                AchievementStore.earn(def.id);
-                this.showAchievement(def);
+                const justEarned = AchievementStore.earn(def.id); // returns true only if newly earned
+                if (justEarned) this.showAchievement(def);
             }
         });
     },
 
     showAchievement(def) {
         AudioEngine.sfxAchievement();
+        // Rich popup: icon + name + desc + progress counter
+        const total = AchievementStore.getCount();
+        const max   = AchievementStore.getTotalCount();
+        document.getElementById('ach-icon').textContent = def.icon || '🏆';
         document.getElementById('ach-name').textContent = def.name;
         document.getElementById('ach-desc').textContent = def.desc;
+        document.getElementById('ach-counter').textContent = `${total} / ${max}`;
         const popup = document.getElementById('achievement-popup');
+        // Clear any running timer so queued achievements don't overlap strangely
+        if (this._achTimer) clearTimeout(this._achTimer);
         popup.classList.add('show');
-        setTimeout(() => popup.classList.remove('show'), 3500);
+        this._achTimer = setTimeout(() => popup.classList.remove('show'), 3800);
     },
 
     checkKillMilestone() {
@@ -527,9 +561,6 @@ const Game = {
 
     // ─────────────────────────── UPDATE ──────────────────────────
     update(dt) {
-        if (this.state === 'LANDING') {
-            return;
-        }
         if (this.state !== 'PLAY') return;
 
         this.time       += dt;
@@ -630,7 +661,7 @@ const Game = {
             if (p.type !== 'whip') {
                 p.x += p.vx * dt; p.y += p.vy * dt;
                 // Daggers spin as they fly
-                if (p.type === 'dagger') { p.spin = (p.spin||0) + dt * 12; p.ang = p.spin; }
+                if (p.type === 'dagger') { p.spin = (p.spin !== undefined ? p.spin : p.ang) + dt * 14; }
                 for (let j = this.enemies.length-1; j >= 0; j--) {
                     const e = this.enemies[j];
                     // Skip already-pierced enemies
@@ -792,8 +823,7 @@ const Game = {
             drawProjectile(ctx, p, off);
         });
 
-        // Bible separate pass
-        this.player.weapons.forEach(w => { if (w.draw && w.id==='Bible') w.draw(ctx, off); });
+        // Bible draw handled in the unified weapon draw pass above
 
         // Particles
         for (const p of this.particles) {
@@ -828,20 +858,25 @@ const Game = {
         this.state = 'GAMEOVER';
         const m = Math.floor(this.time/60), s = Math.floor(this.time%60);
         const weapons = this.player.weapons.map(w => UPGRADES_DB[w.id]?.icon||'?').join(' ');
-        const earned  = AchievementStore.getAll()
-            .map(id => ACHIEVEMENT_DEFS.find(d => d.id===id))
-            .filter(Boolean)
-            .map(d => d.name)
-            .join(', ') || 'Ninguno aún';
+        // Build new-this-session highlights
+        const newIds  = AchievementStore.getNewThisSession();
+        const newHTML = newIds.length
+            ? newIds.map(id => {
+                const d = ACHIEVEMENT_DEFS.find(x => x.id === id);
+                return d ? `<span class="go-ach-badge">${d.icon} ${d.name}</span>` : '';
+              }).join('')
+            : '<span style="color:#443344;font-size:10px">Ninguno esta partida</span>';
+        AchievementStore.clearSession();
+
         document.getElementById('game-over-stats').innerHTML = `
-            <div class="stat-row"><span>Kills Totales:</span><span>${this.kills}</span></div>
-            <div class="stat-row"><span>Tiempo Vivido:</span><span>${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</span></div>
-            <div class="stat-row"><span>Nivel Alcanzado:</span><span>${this.player.level}</span></div>
-            <div class="stat-row"><span>Combo Máximo:</span><span>${this.combo}</span></div>
-            <div class="stat-row"><span>Jefes Derrotados:</span><span>${this.bossKills}</span></div>
+            <div class="stat-row"><span>Kills:</span><span>${this.kills}</span></div>
+            <div class="stat-row"><span>Tiempo:</span><span>${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</span></div>
+            <div class="stat-row"><span>Nivel:</span><span>${this.player.level}</span></div>
+            <div class="stat-row"><span>Combo:</span><span>${this.combo}</span></div>
+            <div class="stat-row"><span>Jefes:</span><span>${this.bossKills}</span></div>
             <div class="stat-row"><span>Armas:</span><span>${weapons}</span></div>
-            <div class="stat-row"><span>Logros Totales:</span><span>${AchievementStore.getAll().length}/7</span></div>
-            <div class="stat-row"><span>Logros:</span><span style="font-size:11px">${earned}</span></div>
+            <div class="stat-row"><span>Logros totales:</span><span>${AchievementStore.getCount()}/${AchievementStore.getTotalCount()}</span></div>
+            <div class="stat-row go-ach-row"><span>Esta partida:</span><div class="go-ach-list">${newHTML}</div></div>
         `;
         setTimeout(() => document.getElementById('gameover-screen').style.display = 'flex', 500);
     },
