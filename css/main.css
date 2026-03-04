@@ -1,4 +1,4 @@
-/* ── SHADOW SURVIVOR: ETERNAL NIGHT ── main.css ── */
+/* ── main.css ── Shadow Survivor: Eternal Night ── */
 :root {
     --primary: #ff2255;
     --secondary: #4466ff;
@@ -12,34 +12,29 @@
 }
 
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
 body, html {
     width:100%; height:100%; overflow:hidden;
     background:var(--bg); font-family:'Rajdhani',sans-serif;
     user-select:none; -webkit-user-select:none;
 }
-
 canvas { display:block; touch-action:none; }
 
-/* ── EFFECTS ── */
+/* ─── VIGNETTE + FX ─── */
 #vignette {
     position:fixed; inset:0; pointer-events:none;
     background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.88) 120%);
     z-index:5;
 }
-#flash { position:fixed; inset:0; background:white; opacity:0; pointer-events:none; z-index:2000; transition:opacity 0.08s; }
-#dmg-flash { position:fixed; inset:0; background:rgba(200,0,40,0); pointer-events:none; z-index:6; transition:background 0.12s; }
+#flash    { position:fixed; inset:0; background:white; opacity:0; pointer-events:none; z-index:2000; transition:opacity 0.08s; }
+#dmg-flash{ position:fixed; inset:0; background:rgba(200,0,40,0); pointer-events:none; z-index:6; transition:background 0.12s; }
 
-/* ── WAVE INDICATOR ── */
 #wave-indicator {
     position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
     font-family:'Orbitron',sans-serif; font-size:clamp(24px,8vw,52px);
     color:var(--primary); text-shadow:0 0 40px var(--primary), 0 0 80px var(--glow-red);
-    pointer-events:none; z-index:200; opacity:0;
-    transition:opacity 0.3s; letter-spacing:6px; text-transform:uppercase;
+    pointer-events:none; z-index:200; opacity:0; transition:opacity 0.3s;
+    letter-spacing:6px; text-transform:uppercase;
 }
-
-/* ── KILL MILESTONE ── */
 #kill-milestone {
     position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(0);
     font-family:'Orbitron',sans-serif; font-size:clamp(20px,6vw,40px); font-weight:900;
@@ -47,7 +42,131 @@ canvas { display:block; touch-action:none; }
     transition: transform 0.3s cubic-bezier(0.2,1.5,0.4,1), opacity 0.3s;
 }
 
-/* ── MINIMAP ── */
+/* ─── LOADING SCREEN ─── */
+#loading-screen {
+    position:fixed; inset:0; z-index:9000;
+    background:var(--bg);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:24px;
+}
+.loading-logo { text-align:center; }
+.loading-moon {
+    font-size:clamp(48px,12vw,80px); line-height:1;
+    color:var(--primary); text-shadow:0 0 40px var(--primary);
+    animation: loadMoonPulse 1.8s ease-in-out infinite;
+}
+@keyframes loadMoonPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.08);} }
+.loading-title {
+    font-family:'Orbitron',sans-serif; font-weight:900;
+    font-size:clamp(16px,5vw,32px); letter-spacing:6px;
+    color:var(--primary); text-shadow:0 0 24px var(--primary);
+    margin-top:12px;
+}
+.loading-sub {
+    font-family:'Orbitron',sans-serif; font-size:clamp(9px,2.5vw,12px);
+    color:#443355; letter-spacing:8px; margin-top:6px;
+}
+.loading-bar-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; width:min(360px,80vw); }
+.loading-bar-track {
+    width:100%; height:6px; background:rgba(255,34,85,0.1);
+    border:1px solid rgba(255,34,85,0.2); border-radius:3px; overflow:hidden;
+    position:relative;
+}
+.loading-bar-fill {
+    height:100%; width:0%; background:linear-gradient(90deg, #ff0033, var(--primary), #ff6688);
+    box-shadow:0 0 12px var(--primary); border-radius:3px;
+    transition:width 0.15s ease;
+}
+.loading-pct {
+    font-family:'Orbitron',sans-serif; font-size:11px; color:var(--primary); letter-spacing:2px;
+}
+.loading-tip { font-size:12px; color:#443355; letter-spacing:3px; font-family:'Orbitron',sans-serif; }
+
+/* ─── LANDING SCREEN ─── */
+#landing-screen {
+    position:fixed; inset:0; z-index:8000;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    background:var(--bg); overflow:hidden;
+}
+.landing-bg {
+    position:absolute; inset:0; pointer-events:none;
+}
+#landing-canvas { width:100%; height:100%; }
+
+.landing-content {
+    position:relative; z-index:1;
+    display:flex; flex-direction:column; align-items:center;
+    text-align:center; padding:20px;
+    animation: landingFadeIn 0.8s ease forwards;
+}
+@keyframes landingFadeIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+
+.landing-eyebrow {
+    font-family:'Orbitron',sans-serif; font-size:clamp(8px,2vw,10px);
+    color:#3a2a4a; letter-spacing:6px; margin-bottom:16px;
+}
+.landing-title {
+    font-family:'Orbitron',sans-serif; font-weight:900; line-height:0.9;
+    margin-bottom:12px; position:relative;
+}
+.lt-shadow {
+    display:block; font-size:clamp(36px,12vw,90px);
+    color:transparent; -webkit-text-stroke:2px rgba(255,34,85,0.5);
+    letter-spacing:12px;
+    text-shadow:0 0 80px rgba(255,34,85,0.15);
+}
+.lt-survivor {
+    display:block; font-size:clamp(24px,8vw,60px);
+    color:var(--primary); letter-spacing:6px;
+    text-shadow:0 0 40px var(--primary), 0 0 80px var(--glow-red);
+}
+.landing-edition {
+    font-family:'Orbitron',sans-serif; font-size:clamp(8px,2vw,11px);
+    color:var(--accent); letter-spacing:8px; margin-bottom:24px;
+    text-shadow:0 0 14px var(--accent);
+}
+.landing-tagline {
+    font-size:clamp(14px,3vw,18px); color:#887799; margin-bottom:28px;
+    font-family:'Rajdhani',sans-serif; line-height:1.6;
+}
+.landing-features {
+    display:flex; gap:clamp(12px,3vw,24px); margin-bottom:40px;
+    flex-wrap:wrap; justify-content:center;
+}
+.lf-item {
+    font-family:'Orbitron',sans-serif; font-size:clamp(9px,2vw,11px);
+    color:#554466; letter-spacing:2px; padding:8px 16px;
+    border:1px solid #1a0a2a; background:rgba(255,34,85,0.03);
+}
+.lf-item span { color:var(--accent); display:block; font-size:1.4em; margin-bottom:3px; }
+.landing-play-btn {
+    position:relative; overflow:hidden;
+    padding:16px 60px; background:transparent;
+    border:2px solid var(--primary); color:white;
+    font-family:'Orbitron',sans-serif; font-size:clamp(12px,3vw,16px);
+    font-weight:700; letter-spacing:4px; cursor:pointer;
+    box-shadow:0 0 30px var(--glow-red), inset 0 0 30px rgba(255,34,85,0.08);
+    transition:all 0.2s; margin-bottom:32px;
+    animation: lpbPulse 2s ease-in-out infinite;
+}
+@keyframes lpbPulse { 0%,100%{box-shadow:0 0 30px var(--glow-red), inset 0 0 30px rgba(255,34,85,0.08);} 50%{box-shadow:0 0 50px var(--glow-red), inset 0 0 40px rgba(255,34,85,0.15);} }
+.landing-play-btn::before {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(90deg, transparent, rgba(255,34,85,0.2), transparent);
+    transform:translateX(-100%); transition:transform 0.5s;
+}
+.landing-play-btn:hover::before { transform:translateX(100%); }
+.landing-play-btn:active { transform:scale(0.97); }
+.landing-controls {
+    font-size:clamp(9px,2vw,11px); color:#2a1a3a; letter-spacing:2px;
+    font-family:'Orbitron',sans-serif;
+}
+.landing-version {
+    position:absolute; bottom:16px; right:20px;
+    font-size:10px; color:#2a1a3a; font-family:'Orbitron',sans-serif; letter-spacing:2px;
+}
+
+/* ─── MINIMAP ─── */
 #minimap {
     position:fixed; bottom:20px; right:16px;
     width:110px; height:110px; z-index:20;
@@ -61,7 +180,7 @@ canvas { display:block; touch-action:none; }
     font-size:8px; color:#554455; letter-spacing:2px; font-family:'Orbitron',sans-serif;
 }
 
-/* ── WEAPON BAR ── */
+/* ─── WEAPON BAR ─── */
 #weapon-bar {
     position:fixed; bottom:28px; left:16px;
     display:flex; gap:6px; z-index:20; pointer-events:none;
@@ -77,7 +196,7 @@ canvas { display:block; touch-action:none; }
     font-size:7px; color:#aa88ff; font-family:'Orbitron',sans-serif;
 }
 
-/* ── ACHIEVEMENT POPUP ── */
+/* ─── ACHIEVEMENT POPUP ─── */
 #achievement-popup {
     position:fixed; top:80px; right:-300px; z-index:300;
     background:rgba(10,6,20,0.97); border:1px solid var(--accent);
@@ -88,10 +207,10 @@ canvas { display:block; touch-action:none; }
 }
 #achievement-popup.show { right:16px; }
 .ach-title { font-size:9px; color:var(--accent); letter-spacing:3px; font-family:'Orbitron',sans-serif; }
-.ach-name { font-size:14px; color:white; margin-top:3px; }
-.ach-desc { font-size:11px; color:#776688; margin-top:2px; }
+.ach-name  { font-size:14px; color:white; margin-top:3px; }
+.ach-desc  { font-size:11px; color:#776688; margin-top:2px; }
 
-/* ── MOBILE CONTROLS ── */
+/* ─── MOBILE CONTROLS ─── */
 #mobile-ui {
     position:fixed; bottom:0; left:0; width:100%; height:200px;
     pointer-events:none; z-index:50;

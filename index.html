@@ -11,6 +11,18 @@
 </head>
 <body>
 
+<!-- LOADING SCREEN (canvas-based) -->
+<div id="loading-screen">
+    <canvas id="loading-canvas"></canvas>
+</div>
+
+<!-- TITLE SCREEN (canvas-based, after loading) -->
+<div id="title-screen">
+    <canvas id="title-canvas"></canvas>
+    <button id="title-continue-btn" aria-label="Continuar"></button>
+</div>
+
+<!-- GAME -->
 <canvas id="game"></canvas>
 <div id="vignette"></div>
 <div id="flash"></div>
@@ -23,16 +35,16 @@
     <div class="xp-container"><div id="xp-fill"></div></div>
     <div id="xp-label">XP</div>
     <div class="top-bar">
-        <div class="stat-group"><span class="label">Time</span><span id="txt-time" class="value">00:00</span></div>
-        <div class="stat-group"><span class="label">Level</span><span id="txt-lvl" class="value">1</span></div>
-        <div class="stat-group"><span class="label">Kills</span><span id="txt-kills" class="value">0</span></div>
+        <div class="stat-group"><span class="label">Tiempo</span><span id="txt-time" class="value">00:00</span></div>
+        <div class="stat-group"><span class="label">Nivel</span>  <span id="txt-lvl"  class="value">1</span></div>
+        <div class="stat-group"><span class="label">Kills</span>  <span id="txt-kills" class="value">0</span></div>
     </div>
     <div id="combo-badge">
         <div style="font-size:8px;color:var(--primary);letter-spacing:3px;font-family:'Orbitron',sans-serif">COMBO</div>
         <div id="txt-combo" class="value" style="font-size:24px">x1</div>
     </div>
     <div id="boss-hud">
-        <div id="boss-name">⚠ BOSS ⚠</div>
+        <div id="boss-name">&#9888; JEFE &#9888;</div>
         <div id="boss-bar-bg"><div id="boss-bar-fill"></div></div>
     </div>
 </div>
@@ -42,61 +54,59 @@
 <div id="hp-label">HP</div>
 <div id="weapon-bar"></div>
 
-<!-- Minimap -->
 <div id="minimap">
     <canvas id="minimap-canvas" width="110" height="110"></canvas>
     <div id="minimap-label">RADAR</div>
 </div>
 
-<!-- Achievement popup -->
 <div id="achievement-popup">
-    <div class="ach-title">🏆 LOGRO DESBLOQUEADO</div>
+    <div class="ach-title">&#127942; LOGRO DESBLOQUEADO</div>
     <div class="ach-name" id="ach-name"></div>
     <div class="ach-desc" id="ach-desc"></div>
 </div>
 
-<button id="pause-btn">⏸ PAUSA</button>
+<button id="pause-btn">&#9208; PAUSA</button>
 
-<!-- Mobile controls -->
 <div id="mobile-ui">
     <div class="joystick-area" id="joy-base"><div id="stick"></div></div>
-    <div class="action-btn" id="btn-burst">ULTRA<br>⚡</div>
+    <div class="action-btn" id="btn-burst">ULTRA<br>&#9889;</div>
 </div>
 
-<!-- START SCREEN -->
+<!-- CHARACTER SELECT -->
 <div id="start-screen" class="overlay">
-    <div class="title-main">☽ SHADOW SURVIVOR</div>
-    <div class="title-sub">ETERNAL NIGHT EDITION</div>
+    <div class="title-main">&#9789; SHADOW SURVIVOR</div>
+    <div class="title-sub">ELIGE TU GUERRERO</div>
     <div class="char-grid" id="char-selection"></div>
-    <button class="btn-main" id="btn-start-game">⚔ &nbsp; COMBATIR</button>
-    <div style="margin-top:14px;font-size:10px;color:#332233;letter-spacing:2px;font-family:'Orbitron',sans-serif">WASD / FLECHAS · ESPACIO: ULTRA</div>
+    <button class="btn-main" id="btn-start-game">&#9876; &nbsp; COMBATIR</button>
+    <div style="margin-top:14px;font-size:10px;color:#332233;letter-spacing:2px;font-family:'Orbitron',sans-serif">WASD / FLECHAS &middot; ESPACIO: ULTRA</div>
 </div>
 
 <!-- LEVEL UP -->
 <div id="levelup-screen" class="overlay">
-    <div style="font-family:'Orbitron',sans-serif;color:var(--accent);margin-bottom:6px;font-size:clamp(11px,3vw,14px);letter-spacing:5px;text-shadow:0 0 20px var(--accent)">⬆ SUBISTE DE NIVEL</div>
+    <div style="font-family:'Orbitron',sans-serif;color:var(--accent);margin-bottom:6px;font-size:clamp(11px,3vw,14px);letter-spacing:5px;text-shadow:0 0 20px var(--accent)">&#11014; SUBISTE DE NIVEL</div>
     <div id="txt-levelup-num" style="font-family:'Orbitron',sans-serif;color:#554466;font-size:11px;margin-bottom:20px;letter-spacing:3px">ELIGE UNA MEJORA</div>
     <div class="upgrade-container" id="upgrade-options"></div>
 </div>
 
-<!-- PAUSE SCREEN -->
+<!-- PAUSE -->
 <div id="pause-screen">
-    <h2>⏸ PAUSA</h2>
+    <h2>&#9208; PAUSA</h2>
     <div class="pause-stats" id="pause-stats"></div>
     <div class="pause-btns">
-        <button class="btn-secondary" onclick="Game.togglePause()">▶ REANUDAR</button>
-        <button class="btn-secondary" onclick="location.reload()">↺ REINICIAR</button>
+        <button class="btn-secondary" onclick="Game.togglePause()">&#9654; REANUDAR</button>
+        <button class="btn-secondary" onclick="location.reload()">&#8635; REINICIAR</button>
     </div>
 </div>
 
 <!-- GAME OVER -->
 <div id="gameover-screen" class="overlay">
-    <div style="font-family:'Orbitron',sans-serif;color:var(--primary);font-size:clamp(22px,7vw,44px);font-weight:900;text-shadow:0 0 40px rgba(255,34,85,0.4)">💀 CAÍSTE</div>
+    <div style="font-family:'Orbitron',sans-serif;color:var(--primary);font-size:clamp(22px,7vw,44px);font-weight:900;text-shadow:0 0 40px rgba(255,34,85,0.4)">&#128128; CA&#205;STE</div>
     <div id="game-over-stats"></div>
-    <button class="btn-main" onclick="location.reload()" style="margin-top:20px">⚔ REINTENTAR</button>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px">
+        <button class="btn-main" onclick="location.reload()">&#9876; REINTENTAR</button>
+    </div>
 </div>
 
-<!-- JS Modules (load order matters) -->
 <script src="js/config.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/utils.js"></script>
@@ -105,6 +115,7 @@
 <script src="js/player.js"></script>
 <script src="js/enemy.js"></script>
 <script src="js/weapons.js"></script>
+<script src="js/intro.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

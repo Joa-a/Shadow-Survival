@@ -130,3 +130,35 @@
 }
 .stat-row { display:flex; justify-content:space-between; border-bottom:1px solid #160a24; padding:8px 0; font-size:15px; }
 .stat-row span:last-child { color:var(--accent); font-family:'Orbitron',sans-serif; font-size:13px; }
+
+/* ══════════════════════════════════════════
+   LOADING SCREEN
+   ══════════════════════════════════════════ */
+#loading-screen {
+    position: fixed; inset: 0; z-index: 9000;
+    background: #03010a;
+    display: flex; align-items: center; justify-content: center;
+}
+#loading-canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+}
+
+/* ══════════════════════════════════════════
+   TITLE / INTRO SCREEN
+   ══════════════════════════════════════════ */
+#title-screen {
+    position: fixed; inset: 0; z-index: 8000;
+    background: #02010c;
+    display: none; align-items: center; justify-content: center;
+}
+#title-canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+}
+/* Full-screen invisible tap target for mobile */
+#title-continue-btn {
+    position: absolute; inset: 0; z-index: 1;
+    background: transparent; border: none; cursor: pointer;
+    width: 100%; height: 100%;
+}
