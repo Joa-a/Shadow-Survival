@@ -188,6 +188,35 @@ const AchievementStore = {
 };
 AchievementStore.load();
 
+// ═══════════════════════════════════════════════════════════════
+//  WEAPON EVOLUTIONS — max-level weapon + passive = evolved weapon
+//  Evolved weapons have evolved:true so they don't appear in upgrade pool.
+// ═══════════════════════════════════════════════════════════════
+
+// Add evolved entries to UPGRADES_DB
+UPGRADES_DB['ThunderStorm'] = {
+    name:'Tormenta Eterna',   icon:'🌩',
+    desc:'Rayo omnipresente. Golpea toda la pantalla en cadena. Evolución: Rayo + Armadura.',
+    type:'weapon', evolved:true
+};
+UPGRADES_DB['DeathScythe'] = {
+    name:'Guadaña Espectral', icon:'🌀',
+    desc:'Látigo espectral 360°. Drena vida en cada golpe. Evolución: Látigo + Vampiro.',
+    type:'weapon', evolved:true
+};
+UPGRADES_DB['HolyNova'] = {
+    name:'Nova Sagrada',      icon:'✝️',
+    desc:'Explosión divina omnidireccional. Empuja y destruye. Evolución: Golpe Santo + Orbe.',
+    type:'weapon', evolved:true
+};
+
+// Recipe table: weapon at Lv8 + passive → result
+const EVOLUTION_TABLE = [
+    { weapon:'Lightning',  passive:'Armor',   result:'ThunderStorm' },
+    { weapon:'Whip',       passive:'Vampire', result:'DeathScythe'  },
+    { weapon:'HolyStrike', passive:'Bible',   result:'HolyNova'     },
+];
+
 // ═══ ENEMY TEMPLATES ═══
 const ENEMY_TYPES = [
     { type:'swarm',    hp:22,  speed:125, r:9,  color:'#ff44aa', xp:3,  dmg:5  },

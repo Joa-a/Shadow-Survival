@@ -238,7 +238,7 @@ const WeaponFactory = {
             Game.projectiles.push({
                 type:'bolt', x:this.player.x, y:this.player.y,
                 vx:Math.cos(ang)*540, vy:Math.sin(ang)*540,
-                r:6, life:2, dmg:this.dmg, color:'#4466ff'
+                r:6, life:2, dmg:this.dmg, color:'#4466ff', weaponLevel:this.level
             });
         }
     }
@@ -284,6 +284,7 @@ const WeaponFactory = {
                 r:     8,
                 life:  1.5,
                 dmg:   this.dmg,
+                weaponLevel: this.level,
                 ang:   ang,
                 spin:  ang,      // continuously updated in game.js
                 color: '#c8e0ff'
@@ -686,6 +687,7 @@ const WeaponFactory = {
             piercing:  true,
             pierced:   [],
             maxPierce: 2 + this.level,
+            weaponLevel: this.level,
             color:     '#ffe066'
         });
 
@@ -758,6 +760,139 @@ const WeaponFactory = {
             });
             ctx.restore();
         });
+    }
+},
+
+
+// ─────────────────────────────────────────────────────────────
+//  THUNDER STORM — Evolution of Lightning + Armor
+//  Chains through ALL enemies on screen. No range limit.
+// ─────────────────────────────────────────────────────────────
+'ThunderStorm': class extends Weapon {
+    constructor(p) {
+        super(p, 'ThunderStorm', 70, 1.0);
+        this.chains = 10;
+    }
+    update(dt) {
+        this.timer -= dt;
+        if (this.timer > 0 || !Game.enemies.length) return;
+        this.timer = this.cooldown;
+        const targets = [...Game.enemies]
+            .filter(e => !e.dead)
+            .sort((a, b) => M.dist(Game.player.x, Game.player.y, a.x, a.y)
+                          - M.dist(Game.player.x, Game.player.y, b.x, b.y))
+            .slice(0, this.chains);
+        let prev = { x: Game.player.x, y: Game.player.y };
+        targets.forEach((e, i) => {
+            const dmg = this.dmg * Math.pow(0.88, i);
+            e.takeDamage(dmg);
+            Game.spawnText(e.x, e.y, Math.floor(dmg), i === 0);
+            Game.spawnParticle(e.x, e.y, '#aaff44', 5);
+            Game.lightningBolts.push({ fromX:prev.x, fromY:prev.y, toX:e.x, toY:e.y, life:0.18, maxLife:0.18 });
+            prev = e;
+        });
+        if (targets.length) { AudioEngine.sfxLightning(); Game.shake = Math.min(Game.shake + 6, 14); }
+    }
+},
+
+// ─────────────────────────────────────────────────────────────
+//  DEATH SCYTHE — Evolution of Whip + Vampire
+//  360° scythe sweep + 3 HP lifesteal per enemy hit.
+// ─────────────────────────────────────────────────────────────
+'DeathScythe': class extends Weapon {
+    constructor(p) {
+        super(p, 'DeathScythe', 55, 1.4);
+        this.range = 165; this.swingActive = false; this.phase = 0;
+    }
+    update(dt) {
+        this.timer -= dt;
+        if (this.swingActive) {
+            this.phase += dt * 4.5;
+            if (this.phase >= 1.0) { this.swingActive = false; this.phase = 0; return; }
+            const hit = Game.enemies.filter(e =>
+                !e.dead && M.dist(Game.player.x, Game.player.y, e.x, e.y) < this.range);
+            hit.forEach(e => {
+                if (e._scytheHit) return; e._scytheHit = true;
+                setTimeout(() => { if (e) e._scytheHit = false; }, 300);
+                const dmg = this.dmg;
+                e.takeDamage(dmg);
+                Game.spawnText(e.x, e.y, Math.floor(dmg), false);
+                Game.player.hp = Math.min(Game.player.maxHp, Game.player.hp + 3);
+                Game.spawnParticle(e.x, e.y, '#cc44ff', 5);
+                const kb = calcKnockback(dmg, e.maxHp);
+                const nd = M.norm(e.x - Game.player.x, e.y - Game.player.y);
+                e.knockback.x += nd.x * kb; e.knockback.y += nd.y * kb;
+            });
+        } else if (this.timer <= 0) {
+            this.timer = this.cooldown; this.swingActive = true; this.phase = 0;
+        }
+    }
+    draw(ctx, off) {
+        if (!this.swingActive) return;
+        const cx = canvas.width / 2, cy = canvas.height / 2;
+        const t  = this.phase;
+        ctx.save();
+        ctx.globalAlpha = (1 - t) * 0.45;
+        ctx.strokeStyle = '#cc44ff'; ctx.lineWidth = 18 * (1 - t);
+        ctx.shadowColor = '#aa00ff'; ctx.shadowBlur = 24;
+        ctx.beginPath(); ctx.arc(cx, cy, this.range, 0, Math.PI * 2); ctx.stroke();
+        // Spinning spectral arc
+        ctx.globalAlpha = (1 - t) * 0.7;
+        const sweep = Math.PI * 2 * t;
+        ctx.beginPath(); ctx.arc(cx, cy, this.range * 0.85, sweep, sweep + Math.PI * 0.9);
+        ctx.strokeStyle = '#ff88ff'; ctx.lineWidth = 6; ctx.stroke();
+        ctx.restore();
+    }
+},
+
+// ─────────────────────────────────────────────────────────────
+//  HOLY NOVA — Evolution of HolyStrike + Bible
+//  Full-screen radial blast with massive knockback.
+// ─────────────────────────────────────────────────────────────
+'HolyNova': class extends Weapon {
+    constructor(p) {
+        super(p, 'HolyNova', 85, 2.2);
+        this.range = 300; this.blastActive = false; this.phase = 0; this._fired = false;
+    }
+    update(dt) {
+        this.timer -= dt;
+        if (this.blastActive) {
+            this.phase += dt * 3.5;
+            if (this.phase >= 1.0) { this.blastActive = false; this.phase = 0; this._fired = false; }
+        } else if (this.timer <= 0) {
+            this.timer = this.cooldown;
+            this.blastActive = true; this.phase = 0; this._fired = false;
+            AudioEngine.sfxLevel(); Game.shake = Math.min(Game.shake + 10, 18);
+            Game.enemies.filter(e => !e.dead &&
+                M.dist(Game.player.x, Game.player.y, e.x, e.y) < this.range
+            ).forEach(e => {
+                const dmg = this.dmg; e.takeDamage(dmg);
+                Game.spawnText(e.x, e.y, Math.floor(dmg), true);
+                Game.spawnParticle(e.x, e.y, '#ffe080', 8);
+                const kb = calcKnockback(dmg, e.maxHp) * 1.8;
+                const nd = M.norm(e.x - Game.player.x, e.y - Game.player.y);
+                e.knockback.x += nd.x * kb; e.knockback.y += nd.y * kb;
+            });
+        }
+    }
+    draw(ctx, off) {
+        if (!this.blastActive) return;
+        const cx = canvas.width / 2, cy = canvas.height / 2;
+        const t  = this.phase, r = this.range * (0.1 + t * 0.9);
+        ctx.save();
+        ctx.globalAlpha = (1 - t) * 0.6;
+        const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grd.addColorStop(0,   'rgba(255,255,220,0.9)');
+        grd.addColorStop(0.4, 'rgba(255,215,0,0.6)');
+        grd.addColorStop(0.85,'rgba(200,100,20,0.2)');
+        grd.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = (1 - t) * 0.9;
+        ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3 + (1 - t) * 4;
+        ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 20;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
     }
 },
 

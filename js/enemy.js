@@ -5,7 +5,10 @@ class Enemy extends Entity {
     constructor(x, y, data, diffMult) {
         super(x, y, data.r, data.hp * diffMult, data.color);
         this.type        = data.type;
-        this.speed       = data.speed * (0.88 + Math.random() * 0.24) * Math.min(diffMult, 2.2);
+        // Logarithmic speed scale — no hard cap, but flattens naturally
+        // diffMult=1→1.0×  3→1.66×  9→2.33×  keeps game hard without hitscanning
+        const speedScale = 1 + Math.log(Math.max(diffMult, 1)) * 0.6;
+        this.speed       = data.speed * (0.88 + Math.random() * 0.24) * speedScale;
         this.baseSpeed   = this.speed;
         this.dmg         = data.dmg * diffMult;
         this.xpValue     = data.xp;

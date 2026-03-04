@@ -15,6 +15,7 @@ const Game = {
     joyId:null, joyStart:{x:0,y:0},
     selectedChar:null, lastTime_loop:0,
     burstLevel:1, burstCharges:1, burstMaxCharges:1, burstMaxCooldown:120, burstCooldown:0,
+    hitstopFrames:0, dmgFlash:0,
     bossKills:0,
     killMilestones:[25,50,100,200,500],
     nextKillMilestone:0,
@@ -211,6 +212,7 @@ const Game = {
         this.shake            = 0;  this.powerUpTimer      = 0;  this.spawnTimer       = 0;
         this.burstLevel       = 1;  this.burstCharges      = 1;  this.burstMaxCharges  = 1;
         this.burstMaxCooldown = 120; this.burstCooldown    = 0;  this.bossKills        = 0;
+        this.hitstopFrames = 0; this.dmgFlash = 0;
         this.nextKillMilestone = 0;
         this._updateBurstUI();
         this.state = 'PLAY';
@@ -380,7 +382,7 @@ const Game = {
         if (t > 300) pool.push(ENEMY_TYPES[5], ENEMY_TYPES[5]);
 
         const data   = pool[M.randInt(0, pool.length - 1)];
-        const hpMult = t < 60 ? 1 : Math.min(1 + (t - 60) / 180, 5);
+        const hpMult = t < 60 ? 1 : 1 + (t - 60) / 180; // no cap — difficulty must scale
         const elite  = t > 120 && Math.random() < 0.07;
         this.enemies.push(new Enemy(x, y, { ...data, elite }, hpMult));
     },
@@ -397,7 +399,7 @@ const Game = {
 
         const container = document.getElementById('upgrade-options');
         container.innerHTML = '';
-        const allKeys   = Object.keys(UPGRADES_DB);
+        const allKeys   = Object.keys(UPGRADES_DB).filter(k => !UPGRADES_DB[k].evolved);
         const unowned   = allKeys.filter(k => UPGRADES_DB[k].type==='weapon' && !this.player.weapons.find(w => w.id===k));
         const owned     = allKeys.filter(k => UPGRADES_DB[k].type==='weapon' &&  this.player.weapons.find(w => w.id===k));
         const stats     = allKeys.filter(k => UPGRADES_DB[k].type==='stat');
@@ -465,6 +467,37 @@ const Game = {
         if (this._achTimer) clearTimeout(this._achTimer);
         popup.classList.add('show');
         this._achTimer = setTimeout(() => popup.classList.remove('show'), 3800);
+    },
+
+    showEvolutionBanner(def) {
+        if (!def) return;
+        AudioEngine.sfxLevel();
+        AudioEngine.sfxAchievement();
+        this.shake = Math.min(this.shake + 14, 20);
+        this.dmgFlash = 0.2; // brief golden tint
+        const flash = document.getElementById('flash');
+        if (flash) {
+            flash.style.background = 'rgba(255,215,0,0.22)';
+            flash.style.transition = 'opacity 0s'; flash.style.opacity = '1';
+            setTimeout(() => {
+                flash.style.transition = 'opacity 0.45s'; flash.style.opacity = '0';
+                flash.style.background = '';
+            }, 220);
+        }
+        const el = document.getElementById('kill-milestone');
+        if (el) {
+            el.textContent       = `⚡ EVOLUCIÓN: ${def.name}`;
+            el.style.color       = '#ffd700';
+            el.style.fontSize    = '20px';
+            el.style.transform   = 'translate(-50%,-50%) scale(1)';
+            el.style.opacity     = '1';
+            setTimeout(() => {
+                el.style.transform = 'translate(-50%,-50%) scale(0)';
+                el.style.opacity   = '0';
+                el.style.fontSize  = '';
+                el.style.color     = '';
+            }, 3200);
+        }
     },
 
     checkKillMilestone() {
@@ -563,8 +596,15 @@ const Game = {
     update(dt) {
         if (this.state !== 'PLAY') return;
 
-        this.time       += dt;
-        this.difficulty  = 1 + (this.time / 60) * 0.3;
+        this.time += dt;
+        // 3-phase difficulty curve — no permanent cap
+        // Phase 1 (0-2 min): gentle ramp, player learns
+        // Phase 2 (2-8 min): controlled acceleration
+        // Phase 3 (8+ min): slow exponential, always increasing
+        const _t = this.time;
+        this.difficulty = _t < 120  ? 1 + _t / 120 * 0.5
+                        : _t < 480  ? 1.5 + (_t - 120) / 360 * 2.0
+                        :             3.5 * Math.pow(1.008, _t - 480);
 
         const curMin = Math.floor(this.time / 60);
         if (curMin > this.lastMinute) { this.lastMinute = curMin; this.spawnEnemy(true); }
@@ -585,9 +625,13 @@ const Game = {
 
         this.player.update(dt, this.input);
 
-        // Enemy spawn ramp
-        const spawnInterval = Math.max(0.45, 4.0 - (this.time / 300) * 3.6);
-        const maxOnScreen   = Math.min(CONFIG.ENEMY_LIMIT, Math.floor(4 + this.time / 10));
+        // Enemy spawn ramp — 3 phases matching difficulty curve
+        const spawnInterval = this.time < 120
+            ? Math.max(1.2, 4.0 - this.time / 60)            // phase 1: slow
+            : this.time < 480
+            ? Math.max(0.6, 1.8 - (this.time - 120) / 480)   // phase 2: medium
+            : Math.max(0.25, 0.6 - (this.time - 480) / 600);  // phase 3: relentless
+        const maxOnScreen = Math.min(CONFIG.ENEMY_LIMIT, Math.floor(6 + this.time / 8));
         this.spawnTimer += dt;
         if (this.spawnTimer >= spawnInterval && this.enemies.filter(e => !e.isBoss).length < maxOnScreen) {
             this.spawnTimer = 0;
@@ -615,7 +659,7 @@ const Game = {
 
         if (this.shake > 0) this.shake *= 0.86;
 
-        // Enemy update + player collision
+        // Enemy update + player collision (spatial hash used for projectiles above)
         for (let i = this.enemies.length-1; i >= 0; i--) {
             const e = this.enemies[i];
             e.update(dt, this.player.x, this.player.y);
@@ -626,9 +670,7 @@ const Game = {
                 } else {
                     const dmg = Math.max(1, e.dmg - this.player.stats.reduction);
                     this.player.hp -= dmg; this.player.iframe = 0.65; this.shake = 7;
-                    const df = document.getElementById('dmg-flash');
-                    df.style.background = 'rgba(200,0,40,0.55)';
-                    setTimeout(() => df.style.background = 'rgba(200,0,40,0)', 130);
+                    this.dmgFlash = 0.55; // synced with rAF loop — no setTimeout
                     if (this.player.hp <= 0) { this.player.hp = 0; this.gameOver(); return; }
                 }
             }
@@ -654,25 +696,33 @@ const Game = {
             }
         }
 
-        // Player projectiles — dagger and arrow update + collision
+        // Player projectiles — Spatial Hash O(K) + scaled crits + knockback
+        SpatialHash.rebuild(this.enemies); // one rebuild per frame
         for (let i = this.projectiles.length-1; i >= 0; i--) {
             const p = this.projectiles[i];
             p.life -= dt;
             if (p.type !== 'whip') {
                 p.x += p.vx * dt; p.y += p.vy * dt;
-                // Daggers spin as they fly
                 if (p.type === 'dagger') { p.spin = (p.spin !== undefined ? p.spin : p.ang) + dt * 14; }
-                for (let j = this.enemies.length-1; j >= 0; j--) {
-                    const e = this.enemies[j];
-                    // Skip already-pierced enemies
+                // Query only nearby enemies — O(K) instead of O(N)
+                const candidates = SpatialHash.queryArray(p.x, p.y, (p.r || 5) + 40);
+                for (const e of candidates) {
                     if (p.pierced && p.pierced.includes(e)) continue;
-                    if (M.dist(p.x, p.y, e.x, e.y) < e.r + (p.r||5)) {
-                        const ic  = Math.random() < 0.18;
-                        const dmg = p.dmg * (ic ? 2.2 : 1);
+                    if (M.dist(p.x, p.y, e.x, e.y) < e.r + (p.r || 5)) {
+                        const wLv = p.weaponLevel || 1;
+                        const ic  = Math.random() < calcCritChance(wLv, this.combo);
+                        const dmg = p.dmg * (ic ? calcCritMult(wLv) : 1);
                         e.takeDamage(dmg);
                         AudioEngine.sfxHit();
                         this.spawnText(e.x, e.y, Math.floor(dmg), ic);
                         this.spawnParticle(e.x, e.y, e.color, 4);
+                        // Scaled knockback
+                        const kb = calcKnockback(dmg, e.maxHp);
+                        const nd = M.norm(p.x - e.x, p.y - e.y);
+                        e.knockback.x -= nd.x * kb;
+                        e.knockback.y -= nd.y * kb;
+                        // Hit-stop on crits (mobile: 2 frames, desktop: 4)
+                        if (ic) this.hitstopFrames = Math.max(this.hitstopFrames, CONFIG.IS_MOBILE ? 2 : 4);
                         if (p.piercing) {
                             if (!p.pierced) p.pierced = [];
                             p.pierced.push(e);
@@ -710,8 +760,12 @@ const Game = {
                 const xpGain = g.xp * (1 + this.combo * 0.015);
                 this.player.xp += xpGain;
                 while (this.player.xp >= this.player.nextXp) {
-                    this.player.xp    -= this.player.nextXp;
-                    this.player.nextXp = Math.floor(this.player.nextXp * 1.7);
+                    this.player.xp -= this.player.nextXp;
+                    // Hybrid XP curve: fast early (give player power quickly),
+                    // medium mid-game, nearly linear late (always feel progress)
+                    const _lv = this.player.level;
+                    const _xpMult = _lv < 5 ? 1.55 : _lv < 12 ? 1.35 : 1.20;
+                    this.player.nextXp = Math.floor(this.player.nextXp * _xpMult);
                     this.player.level++;
                     this.triggerLevelUp();
                 }
@@ -735,6 +789,9 @@ const Game = {
             this.lightningBolts[i].life -= dt;
             if (this.lightningBolts[i].life <= 0) this.lightningBolts.splice(i, 1);
         }
+
+        // Damage flash decay — synced with frame loop
+        if (this.dmgFlash > 0) this.dmgFlash = Math.max(0, this.dmgFlash - dt * 4.2);
 
         this.updateHUD();
         this.drawMinimap();
@@ -825,11 +882,31 @@ const Game = {
 
         // Bible draw handled in the unified weapon draw pass above
 
-        // Particles
-        for (const p of this.particles) {
-            const alpha = Math.max(0, p.life/p.maxLife);
-            ctx.globalAlpha=alpha; ctx.fillStyle=p.color;
-            ctx.beginPath(); ctx.arc(p.x-off.x+canvas.width/2,p.y-off.y+canvas.height/2,p.r*(0.4+alpha*0.6),0,Math.PI*2); ctx.fill();
+        // Particles — batched by color: one path + fill per color group
+        // Avoids per-particle shadowBlur calls (GPU killer on mobile)
+        if (this.particles.length) {
+            const byColor = new Map();
+            for (const p of this.particles) {
+                if (!byColor.has(p.color)) byColor.set(p.color, []);
+                byColor.get(p.color).push(p);
+            }
+            ctx.shadowBlur = CONFIG.IS_MOBILE ? 0 : 7;
+            for (const [color, group] of byColor) {
+                ctx.fillStyle  = color;
+                ctx.shadowColor = color;
+                ctx.beginPath();
+                for (const p of group) {
+                    const alpha = Math.max(0, p.life / p.maxLife);
+                    const r = p.r * (0.3 + alpha * 0.7); // size-fade: cheaper than globalAlpha
+                    if (r < 0.5) continue;
+                    const sx = p.x - off.x + canvas.width  / 2;
+                    const sy = p.y - off.y + canvas.height / 2;
+                    ctx.moveTo(sx + r, sy);
+                    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+                }
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
         }
         ctx.globalAlpha = 1;
 
@@ -850,6 +927,14 @@ const Game = {
         }
         ctx.globalAlpha = 1;
         ctx.restore();
+
+        // Damage flash — drawn OUTSIDE the shake transform (screen-space)
+        if (this.dmgFlash > 0.01) {
+            ctx.save();
+            ctx.fillStyle = `rgba(200,0,40,${this.dmgFlash.toFixed(2)})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+        }
     },
 
     // ─────────────────────────── GAME OVER ───────────────────────
@@ -885,7 +970,14 @@ const Game = {
     loop(now) {
         const dt = Math.min((now - (this.lastTime_loop||now)) / 1000, 0.08);
         this.lastTime_loop = now;
-        if (this.state !== 'PAUSE') { this.update(dt); this.draw(); }
+        if (this.hitstopFrames > 0) {
+            // Hit-stop: freeze update but keep drawing — sells the weight of crits
+            this.hitstopFrames--;
+            this.draw();
+        } else if (this.state !== 'PAUSE') {
+            this.update(dt);
+            this.draw();
+        }
         requestAnimationFrame(t => this.loop(t));
     }
 };

@@ -22,22 +22,57 @@ class Player extends Entity {
 
     addWeapon(id) {
         const existing = this.weapons.find(w => w.id === id);
-        if (existing) { existing.levelUp(); }
-        else {
+        if (existing) {
+            existing.levelUp();
+            this._checkEvolutions(); // may trigger weapon evolution
+        } else {
             const cls = WeaponFactory[id];
             if (cls) this.weapons.push(new cls(this));
         }
     }
 
     applyStatUpgrade(id) {
+        this._unlockedPassives = this._unlockedPassives || new Set();
         switch(id) {
-            case 'Boots':   this.speed *= 1.15;             break;
-            case 'Spinach': this.stats.damageMult += 0.22;  break;
+            case 'Boots':   this.speed *= 1.15;   break;
+            case 'Spinach': {
+                // Diminishing returns: each Spinach is worth less than the last
+                // 1st:+0.22  2nd:+0.17  3rd:+0.13  4th:+0.10  5th:+0.09
+                const accumulated = this.stats.damageMult - 1.0;
+                const bonus = 0.22 / (1 + accumulated * 0.5);
+                this.stats.damageMult += bonus;
+                break;
+            }
             case 'Armor':   this.stats.reduction  += 3;     break;
             case 'Magnet':  this.pickupRange *= 1.35;       break;
             case 'Regen':   this.stats.regen  += 0.4;       break;
             case 'Ultra':   Game.upgradeBurst();            break;
             case 'Vampire': this.stats.vampire += 1;        break;
+        }
+        this._unlockedPassives.add(id);
+        this._checkEvolutions();
+    }
+
+    // ── Weapon Evolution check ─────────────────────────────────────
+    // Called after every weapon level-up or passive unlock.
+    // Requires: weapon at max level (8) + specific passive unlocked.
+    _checkEvolutions() {
+        this._unlockedPassives = this._unlockedPassives || new Set();
+        if (typeof EVOLUTION_TABLE === 'undefined') return;
+        for (const evo of EVOLUTION_TABLE) {
+            const weapon      = this.weapons.find(w => w.id === evo.weapon);
+            const atMaxLevel  = weapon && weapon.level >= 8;
+            const hasPassive  = this._unlockedPassives.has(evo.passive);
+            const alreadyDone = this.weapons.find(w => w.id === evo.result);
+            if (atMaxLevel && hasPassive && !alreadyDone) {
+                const idx = this.weapons.indexOf(weapon);
+                const cls = WeaponFactory[evo.result];
+                if (cls) {
+                    this.weapons[idx] = new cls(this);
+                    if (typeof Game !== 'undefined')
+                        Game.showEvolutionBanner(UPGRADES_DB[evo.result]);
+                }
+            }
         }
     }
 

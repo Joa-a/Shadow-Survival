@@ -26,7 +26,7 @@ canvas { display:block; touch-action:none; }
     z-index:5;
 }
 #flash    { position:fixed; inset:0; background:white; opacity:0; pointer-events:none; z-index:2000; transition:opacity 0.08s; }
-#dmg-flash{ position:fixed; inset:0; background:rgba(200,0,40,0); pointer-events:none; z-index:6; transition:background 0.12s; }
+
 
 #wave-indicator {
     position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
