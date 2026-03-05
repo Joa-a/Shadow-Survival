@@ -8,6 +8,7 @@ const Game = {
     texts:[], enemyProjectiles:[], powerUps:[], lightningBolts:[],
     currentBoss:null,
     state:'LOADING',          // LOADING → LANDING → START → PLAY → PAUSE → LEVELUP → GAMEOVER
+    gameMode: 'normal',        // 'normal' | 'frenetic'
     kills:0, time:0, combo:0, comboTimer:0,
     shake:0, difficulty:1, lastMinute:0,
     powerUpTimer:0, spawnTimer:0,
@@ -16,6 +17,10 @@ const Game = {
     selectedChar:null, lastTime_loop:0,
     burstLevel:1, burstCharges:1, burstMaxCharges:1, burstMaxCooldown:120, burstCooldown:0,
     hitstopFrames:0, dmgFlash:0,
+    xpBoostTimer:0,        // seconds remaining on XP boost (ad reward)
+    xpBoostMult:1,         // 1.0 normal | 1.25 during boost
+    reviveAvailable:false, // set true when gameover screen shown (if not yet used)
+
     bossKills:0,
     killMilestones:[25,50,100,200,500],
     nextKillMilestone:0,
@@ -36,9 +41,20 @@ const Game = {
     },
 
     resize() {
-        canvas.width  = window.innerWidth;
-        canvas.height = window.innerHeight;
+        const W = window.innerWidth;
+        const H = window.innerHeight;
 
+        // On small screens, shrink the canvas buffer so entities appear larger.
+        // The browser stretches the canvas to fill the screen via CSS = free zoom.
+        const minDim  = Math.min(W, H);
+        this.zoom     = minDim < 520 ? Math.min(1.65, 520 / minDim) : 1;
+
+        canvas.width  = Math.round(W / this.zoom);
+        canvas.height = Math.round(H / this.zoom);
+
+        // Stretch canvas to fill the real viewport
+        canvas.style.width  = W + 'px';
+        canvas.style.height = H + 'px';
     },
 
     // ─────────────────────────── LOADING SCREEN ──────────────────
@@ -90,12 +106,111 @@ const Game = {
         grid.children[0].classList.add('selected');
     },
 
+    // ── Wire all rewarded ad buttons ─────────────────────────────
+    _wireAdButtons() {
+        // Chest button (start screen)
+        const chestBtn = document.getElementById('btn-ad-chest');
+        if (chestBtn) {
+            chestBtn.onclick = () => {
+                AdsManager.request('starter_chest', () => this._grantStarterChest());
+            };
+        }
+
+        // Re-roll button (level up screen)
+        const rerollBtn = document.getElementById('btn-ad-reroll');
+        if (rerollBtn) {
+            rerollBtn.onclick = () => {
+                if (!AdsManager.canClaim('reroll')) return;
+                AdsManager.request('reroll', () => {
+                    // Re-generate the upgrade pool
+                    this.triggerLevelUp();
+                });
+            };
+        }
+
+        // Revive button (gameover screen — wired dynamically in gameOver())
+        // XP boost button (HUD)
+        const xpBtn = document.getElementById('btn-ad-xp');
+        if (xpBtn) {
+            xpBtn.onclick = () => {
+                if (!AdsManager.canClaim('xp_boost')) {
+                    xpBtn.disabled = true; return;
+                }
+                AdsManager.request('xp_boost', () => {
+                    this.xpBoostTimer = 60;
+                    this.xpBoostMult  = 1.25;
+                    this.showWaveMessage('⚡ XP +25% durante 60s');
+                    xpBtn.disabled = true;
+                });
+            };
+        }
+    },
+
+    // ── Starter Chest reward ──────────────────────────────────────
+    _grantStarterChest() {
+        // Give one random upgrade (weighted toward weapons)
+        const allKeys = Object.keys(UPGRADES_DB).filter(k => !UPGRADES_DB[k].evolved);
+        const unowned = allKeys.filter(k =>
+            UPGRADES_DB[k].type === 'weapon' && !this.player.weapons.find(w => w.id === k));
+        const stats   = allKeys.filter(k => UPGRADES_DB[k].type === 'stat');
+        // 70% chance weapon, 30% stat
+        const pool    = Math.random() < 0.7 && unowned.length ? unowned : stats;
+        const key     = pool[Math.floor(Math.random() * pool.length)];
+        if (!key) return;
+        const up = UPGRADES_DB[key];
+        if (up.type === 'weapon') this.player.addWeapon(key);
+        else this.player.applyStatUpgrade(key);
+        this.updateWeaponBar?.();
+        // Show what was granted
+        this.showWaveMessage(`🎁 ${up.icon} ${up.name}`);
+        AudioEngine.sfxLevel();
+        // Disable button since it's 'once'
+        const btn = document.getElementById('btn-ad-chest');
+        if (btn) btn.disabled = true;
+    },
+
+    // ── Revive reward ─────────────────────────────────────────────
+    _grantRevive() {
+        const go = document.getElementById('gameover-screen');
+        if (go) go.style.display = 'none';
+        this.state      = 'PLAY';
+        this.player.hp  = Math.floor(this.player.maxHp * 0.3);
+        this.player.iframe = 3.0;  // brief invincibility after revive
+        this.dmgFlash   = 0;
+        this.shake      = 8;
+        // Push nearby enemies back
+        for (const e of this.enemies) {
+            const d = M.dist(e.x, e.y, this.player.x, this.player.y);
+            if (d < 200) {
+                const nd = M.norm(e.x - this.player.x, e.y - this.player.y);
+                e.knockback.x += nd.x * 600;
+                e.knockback.y += nd.y * 600;
+            }
+        }
+        this.showWaveMessage('💀 REVIVISTE — 3s invencible');
+        AudioEngine.sfxLevel();
+        // Disable revive button
+        const btn = document.getElementById('btn-ad-revive');
+        if (btn) btn.disabled = true;
+    },
+
     initControls() {
         const startBtn = document.getElementById('btn-start-game');
         if (startBtn._bound) return;
         startBtn._bound = true;
         startBtn.onclick = () => this.start();
         startBtn.addEventListener('touchend', e => { e.preventDefault(); this.start(); });
+
+        // Mode selector buttons
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            const select = () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('mode-active'));
+                btn.classList.add('mode-active');
+                this.gameMode = btn.dataset.mode;
+            };
+            btn.onclick = select;
+            btn.addEventListener('touchend', e => { e.preventDefault(); select(); });
+        });
 
         const pauseBtn = document.getElementById('pause-btn');
         pauseBtn.onclick = () => this.togglePause();
@@ -213,12 +328,18 @@ const Game = {
         this.burstLevel       = 1;  this.burstCharges      = 1;  this.burstMaxCharges  = 1;
         this.burstMaxCooldown = 120; this.burstCooldown    = 0;  this.bossKills        = 0;
         this.hitstopFrames = 0; this.dmgFlash = 0;
+        this.xpBoostTimer = 0; this.xpBoostMult = 1; this.reviveAvailable = false;
+        if (typeof AdsManager !== 'undefined') AdsManager.resetSession();
+        this._wireAdButtons();
         this.nextKillMilestone = 0;
         this._updateBurstUI();
         this.state = 'PLAY';
         document.getElementById('start-screen').style.display    = 'none';
         document.getElementById('boss-hud').style.display        = 'none';
         document.getElementById('gameover-screen').style.display = 'none';
+        // Show/hide frenetic badge
+        const badge = document.getElementById('frenetic-badge');
+        if (badge) badge.style.display = this.gameMode === 'frenetic' ? 'block' : 'none';
         AudioEngine.sfxPowerup();
         this.updateWeaponBar();
     },
@@ -358,8 +479,8 @@ const Game = {
         const y     = this.player.y + Math.sin(angle) * dist;
 
         if (isBoss) {
-            const bossHp = 350 + this.lastMinute * 200;
-            const data   = { type:'boss', hp:bossHp, speed:115 + this.lastMinute*10, r:32, color:'#ff1144', xp:80, dmg:15, isBoss:true };
+            const bossHp = (350 + this.lastMinute * 200) * (this.gameMode === 'frenetic' ? 1.4 : 1);
+            const data   = { type:'boss', hp:bossHp, speed:(115 + this.lastMinute*10) * (this.gameMode === 'frenetic' ? 1.25 : 1), r:32, color:'#ff1144', xp:80, dmg:15, isBoss:true };
             const e      = new Enemy(x, y, data, 1);
             this.enemies.push(e);
             this.currentBoss = e;
@@ -382,9 +503,16 @@ const Game = {
         if (t > 300) pool.push(ENEMY_TYPES[5], ENEMY_TYPES[5]);
 
         const data   = pool[M.randInt(0, pool.length - 1)];
-        const hpMult = t < 60 ? 1 : 1 + (t - 60) / 180; // no cap — difficulty must scale
-        const elite  = t > 120 && Math.random() < 0.07;
-        this.enemies.push(new Enemy(x, y, { ...data, elite }, hpMult));
+        const hpMult = t < 60 ? 1 : 1 + (t - 60) / 180;
+        const elite  = t > 120 && Math.random() < (this.gameMode === 'frenetic' ? 0.13 : 0.07);
+        const enemy  = new Enemy(x, y, { ...data, elite }, hpMult);
+        // Frenetic: enemies 35% faster and drop 50% more XP
+        if (this.gameMode === 'frenetic') {
+            enemy.speed    *= 1.35;
+            enemy.baseSpeed = enemy.speed;
+            enemy.xpValue   = Math.ceil(enemy.xpValue * 1.5);
+        }
+        this.enemies.push(enemy);
     },
 
     // ─────────────────────────── LEVEL UP ────────────────────────
@@ -626,24 +754,35 @@ const Game = {
         this.player.update(dt, this.input);
 
         // Enemy spawn ramp — 3 phases matching difficulty curve
-        const spawnInterval = this.time < 120
-            ? Math.max(1.2, 4.0 - this.time / 60)            // phase 1: slow
+        const isFrenetic = this.gameMode === 'frenetic';
+        const spawnBase = this.time < 120
+            ? Math.max(1.2, 4.0 - this.time / 60)
             : this.time < 480
-            ? Math.max(0.6, 1.8 - (this.time - 120) / 480)   // phase 2: medium
-            : Math.max(0.25, 0.6 - (this.time - 480) / 600);  // phase 3: relentless
-        const maxOnScreen = Math.min(CONFIG.ENEMY_LIMIT, Math.floor(6 + this.time / 8));
+            ? Math.max(0.6, 1.8 - (this.time - 120) / 480)
+            : Math.max(0.25, 0.6 - (this.time - 480) / 600);
+        // Frenetic: 2.5× faster spawns, 30% more enemies on screen
+        const spawnInterval = isFrenetic ? spawnBase / 2.5 : spawnBase;
+        const maxOnScreen = isFrenetic
+            ? Math.min(CONFIG.ENEMY_LIMIT, Math.floor(12 + this.time / 5))
+            : Math.min(CONFIG.ENEMY_LIMIT, Math.floor(6 + this.time / 8));
         this.spawnTimer += dt;
         if (this.spawnTimer >= spawnInterval && this.enemies.filter(e => !e.isBoss).length < maxOnScreen) {
             this.spawnTimer = 0;
             this.spawnEnemy();
         }
 
-        // Power-up spawn
+        // Power-up spawn — frenetic: 2× faster
         this.powerUpTimer += dt;
-        if (this.powerUpTimer > 14) {
+        const powerUpInterval = isFrenetic ? 7 : 14;
+        if (this.powerUpTimer > powerUpInterval) {
             this.powerUpTimer = 0;
             const a = Math.random() * Math.PI * 2, d = M.rand(140, 320);
             this.spawnPowerUp(this.player.x + Math.cos(a)*d, this.player.y + Math.sin(a)*d);
+            // Frenetic: spawn a second powerup occasionally
+            if (isFrenetic && Math.random() < 0.4) {
+                const a2 = Math.random() * Math.PI * 2;
+                this.spawnPowerUp(this.player.x + Math.cos(a2)*d, this.player.y + Math.sin(a2)*d);
+            }
         }
 
         // Power-up collection
@@ -663,8 +802,19 @@ const Game = {
         for (let i = this.enemies.length-1; i >= 0; i--) {
             const e = this.enemies[i];
             e.update(dt, this.player.x, this.player.y);
-            const d = M.dist(this.player.x, this.player.y, e.x, e.y);
-            if (d < e.r + this.player.r && this.player.iframe <= 0) {
+
+            // Physical separation: push enemy out of player body so they cant overlap
+            const dx  = e.x - this.player.x;
+            const dy  = e.y - this.player.y;
+            const d   = Math.sqrt(dx * dx + dy * dy) || 0.001;
+            const min = e.r + this.player.r;
+            if (d < min) {
+                const push = (min - d) / d;
+                e.x += dx * push;
+                e.y += dy * push;
+            }
+
+            if (d < min && this.player.iframe <= 0) {
                 if (this.player.activeBuffs.shield > 0) {
                     this.player.activeBuffs.shield = 0; this.shake = 5; this.player.iframe = 0.5;
                 } else {
@@ -696,6 +846,28 @@ const Game = {
             }
         }
 
+        // Enemy-enemy separation: prevent stacking on top of each other
+        // Cap at 60 enemies to avoid O(N²) cost with big hordes
+        const ec = this.enemies.length;
+        if (ec > 1) {
+            const limit = Math.min(ec, 60);
+            for (let i = 0; i < limit - 1; i++) {
+                const a = this.enemies[i];
+                for (let j = i + 1; j < limit; j++) {
+                    const b   = this.enemies[j];
+                    const dx  = a.x - b.x;
+                    const dy  = a.y - b.y;
+                    const d   = Math.sqrt(dx * dx + dy * dy) || 0.001;
+                    const min = (a.r + b.r) * 0.9;
+                    if (d < min) {
+                        const push = ((min - d) / d) * 0.5;
+                        a.x += dx * push; a.y += dy * push;
+                        b.x -= dx * push; b.y -= dy * push;
+                    }
+                }
+            }
+        }
+
         // Player projectiles — Spatial Hash O(K) + scaled crits + knockback
         SpatialHash.rebuild(this.enemies); // one rebuild per frame
         for (let i = this.projectiles.length-1; i >= 0; i--) {
@@ -703,7 +875,7 @@ const Game = {
             p.life -= dt;
             if (p.type !== 'whip') {
                 p.x += p.vx * dt; p.y += p.vy * dt;
-                if (p.type === 'dagger') { p.spin = (p.spin !== undefined ? p.spin : p.ang) + dt * 14; }
+                if (p.type === 'dagger') { /* no spin — dagger points in direction of travel */ }
                 // Query only nearby enemies — O(K) instead of O(N)
                 const candidates = SpatialHash.queryArray(p.x, p.y, (p.r || 5) + 40);
                 for (const e of candidates) {
@@ -752,12 +924,15 @@ const Game = {
         }
 
         // XP gems
+        const pickupRange   = this.gameMode === 'frenetic' ? this.player.pickupRange * 2.0 : this.player.pickupRange;
+        const gemPullSpeed  = this.gameMode === 'frenetic' ? 18 : 10;
         for (let i = this.gems.length-1; i >= 0; i--) {
             const g = this.gems[i];
             const d = M.dist(this.player.x, this.player.y, g.x, g.y);
-            if (d < this.player.pickupRange) { g.x=M.lerp(g.x,this.player.x,dt*10); g.y=M.lerp(g.y,this.player.y,dt*10); }
+            if (d < pickupRange) { g.x=M.lerp(g.x,this.player.x,dt*gemPullSpeed); g.y=M.lerp(g.y,this.player.y,dt*gemPullSpeed); }
             if (d < 16) {
-                const xpGain = g.xp * (1 + this.combo * 0.015);
+                const xpGain = g.xp * (1 + this.combo * 0.015) * this.xpBoostMult * (this.gameMode === 'frenetic' ? 1.3 : 1);
+                this.player.xp += xpGain;
                 this.player.xp += xpGain;
                 while (this.player.xp >= this.player.nextXp) {
                     this.player.xp -= this.player.nextXp;
@@ -771,6 +946,18 @@ const Game = {
                 }
                 this.gems.splice(i, 1);
             }
+        }
+
+        // XP Boost timer decay
+        if (this.xpBoostTimer > 0) {
+            this.xpBoostTimer -= dt;
+            if (this.xpBoostTimer <= 0) {
+                this.xpBoostTimer = 0; this.xpBoostMult = 1;
+                this.showWaveMessage('⚡ XP boost terminó');
+            }
+            // Update boost bar in HUD
+            const fill = document.getElementById('xp-boost-fill');
+            if (fill) fill.style.width = Math.max(0, (this.xpBoostTimer / 60) * 100) + '%';
         }
 
         // Particles
@@ -963,7 +1150,18 @@ const Game = {
             <div class="stat-row"><span>Logros totales:</span><span>${AchievementStore.getCount()}/${AchievementStore.getTotalCount()}</span></div>
             <div class="stat-row go-ach-row"><span>Esta partida:</span><div class="go-ach-list">${newHTML}</div></div>
         `;
-        setTimeout(() => document.getElementById('gameover-screen').style.display = 'flex', 500);
+        setTimeout(() => {
+            document.getElementById('gameover-screen').style.display = 'flex';
+            // Wire revive button (only if not already used this session)
+            const reviveBtn = document.getElementById('btn-ad-revive');
+            if (reviveBtn) {
+                const canRevive = typeof AdsManager !== 'undefined' && AdsManager.canClaim('revive');
+                reviveBtn.disabled = !canRevive;
+                reviveBtn.onclick  = () => {
+                    AdsManager.request('revive', () => this._grantRevive());
+                };
+            }
+        }, 500);
     },
 
     // ─────────────────────────── MAIN LOOP ───────────────────────

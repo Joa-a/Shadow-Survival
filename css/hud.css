@@ -18,7 +18,7 @@
 }
 #xp-label {
     position:fixed; top:7px; left:50%; transform:translateX(-50%);
-    font-size:9px; color:#0088ff; letter-spacing:2px;
+    font-size:clamp(10px,2.5vw,11px); color:#0088ff; letter-spacing:2px;
     font-family:'Orbitron',sans-serif; pointer-events:none; z-index:13;
     text-shadow:0 0 8px #0088ff;
 }
@@ -41,7 +41,7 @@
     position:fixed;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 9px);
     left:50%; transform:translateX(-50%);
-    font-size:9px; color:#ff2255; letter-spacing:2px;
+    font-size:clamp(10px,2.5vw,11px); color:#ff2255; letter-spacing:2px;
     font-family:'Orbitron',sans-serif; pointer-events:none; z-index:12;
     text-shadow:0 0 8px #ff2255;
 }
@@ -56,7 +56,7 @@
 }
 .stat-group { display:flex; flex-direction:column; align-items:center; gap:1px; }
 .label {
-    font-size:8px; color:#553355; text-transform:uppercase;
+    font-size:clamp(9px,2.2vw,11px); color:#553355; text-transform:uppercase;
     letter-spacing:2px; font-family:'Orbitron',sans-serif;
 }
 .value {
@@ -85,7 +85,7 @@
     flex-direction:column; align-items:center; gap:6px; z-index:12;
 }
 #boss-name {
-    color:var(--primary); font-size:9px; letter-spacing:4px;
+    color:var(--primary); font-size:clamp(10px,2.5vw,12px); letter-spacing:4px;
     font-family:'Orbitron',sans-serif; text-shadow:0 0 14px var(--primary);
     animation:bossNamePulse 1.5s infinite;
 }

@@ -916,7 +916,7 @@ function drawProjectile(ctx, p, off) {
     // ── DAGGER — Kael's thrown knife (full silhouette) ───────────
     case 'dagger': {
         ctx.translate(sx, sy);
-        ctx.rotate(p.spin !== undefined ? p.spin : p.ang);
+        ctx.rotate(p.ang);   // fixed: always points in direction of travel
 
         // Motion blur ghost
         ctx.globalAlpha = 0.2;

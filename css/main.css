@@ -18,6 +18,7 @@ body, html {
     user-select:none; -webkit-user-select:none;
 }
 canvas { display:block; touch-action:none; }
+#game  { position:fixed; top:0; left:0; }
 
 /* ─── VIGNETTE + FX ─── */
 #vignette {
@@ -260,10 +261,11 @@ canvas { display:block; touch-action:none; }
     position:fixed;
     top: calc(env(safe-area-inset-top, 0px) + 12px);
     right:16px;
-    padding:8px 16px; background:rgba(0,0,0,0.65); border:1px solid #3a2a4a;
+    padding:clamp(8px,2vw,10px) clamp(14px,3.5vw,18px);
+    background:rgba(0,0,0,0.65); border:1px solid #3a2a4a;
     color:#887799; border-radius:5px; pointer-events:auto; z-index:100;
-    font-family:'Orbitron',sans-serif; font-size:11px; cursor:pointer;
-    letter-spacing:1px; min-height:40px; min-width:40px;
+    font-family:'Orbitron',sans-serif; font-size:clamp(11px,2.8vw,13px); cursor:pointer;
+    letter-spacing:1px; min-height:44px; min-width:44px;
 }
 
 /* ══════════════════════════════════════════
@@ -398,4 +400,132 @@ canvas { display:block; touch-action:none; }
     padding: 3px 8px; border-radius: 4px;
     font-family: 'Orbitron', sans-serif;
     white-space: nowrap;
+}
+
+/* ── Rewarded Ad Buttons ────────────────────────────────────── */
+.btn-ad {
+    background: none;
+    border: 1px solid #ff8800;
+    color: #ff8800;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 9px 22px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: box-shadow 0.15s, color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 auto;
+}
+.btn-ad:hover, .btn-ad:active {
+    box-shadow: 0 0 12px rgba(255,136,0,0.4);
+    color: #ffaa33;
+    border-color: #ffaa33;
+}
+.btn-ad:disabled {
+    opacity: 0.28;
+    cursor: default;
+    pointer-events: none;
+}
+.btn-ad-small {
+    font-size: 10px;
+    padding: 7px 16px;
+}
+.btn-ad-hud {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 60px);
+    right: 16px;
+    font-size: clamp(9px,2.2vw,11px);
+    padding: clamp(6px,1.5vw,8px) clamp(10px,2.5vw,14px);
+    border-radius: 12px;
+    z-index: 20;
+    pointer-events: auto;
+    min-height: 36px;
+}
+.ad-badge {
+    background: #ff8800;
+    color: #000;
+    font-size: 8px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+    font-weight: 900;
+}
+
+/* ── XP Boost active indicator ─────────────────────────────── */
+#xp-boost-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(255,230,0,0.15);
+    pointer-events: none;
+}
+#xp-boost-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ffdd00, #ffaa00);
+    box-shadow: 0 0 6px #ffdd00;
+    transition: width 0.25s linear;
+}
+
+/* ── Mode selector (Normal / Frenético) ── */
+#mode-selector {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0 8px;
+}
+.mode-btn {
+    flex: 1;
+    max-width: 160px;
+    padding: 10px 18px;
+    background: transparent;
+    border: 1px solid #3a1a4a;
+    color: #554466;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(9px, 2.5vw, 11px);
+    letter-spacing: 2px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.18s;
+}
+.mode-btn:hover {
+    border-color: #664477;
+    color: #998899;
+}
+.mode-btn.mode-active[data-mode="normal"] {
+    border-color: var(--secondary);
+    color: #88aaff;
+    box-shadow: 0 0 14px rgba(68,102,255,0.3);
+    background: rgba(68,102,255,0.07);
+}
+.mode-btn.mode-active[data-mode="frenetic"] {
+    border-color: var(--primary);
+    color: #ff6688;
+    box-shadow: 0 0 14px rgba(255,34,85,0.4);
+    background: rgba(255,34,85,0.08);
+    animation: freneticPulse 0.9s infinite;
+}
+@keyframes freneticPulse {
+    0%,100% { box-shadow: 0 0 14px rgba(255,34,85,0.4); }
+    50%      { box-shadow: 0 0 28px rgba(255,34,85,0.7), 0 0 50px rgba(255,34,85,0.2); }
+}
+/* Frenetic mode HUD badge */
+#frenetic-badge {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 56px);
+    left: 16px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 3px 8px;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 20;
+    display: none;
+    animation: freneticPulse 0.9s infinite;
 }
