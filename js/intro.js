@@ -102,6 +102,7 @@ const Intro = {
         const ctx = this._loadCtx;
         const dpr = window.devicePixelRatio || 1;
         this._loadCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this._loadCtx.imageSmoothingEnabled = false;
         const W  = window.innerWidth;
         const H  = window.innerHeight;
         const cx = W / 2, cy = H / 2;
@@ -408,9 +409,9 @@ const Intro = {
     _drawTitle(now) {
         const ctx = this._titleCtx;
         const dpr = window.devicePixelRatio || 1;
-        // Reset and apply DPR scale so all drawing uses CSS pixels
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        const W  = window.innerWidth;   // CSS pixels — consistent with clamp()
+        ctx.imageSmoothingEnabled = false;   // crisp text, no blur
+        const W  = window.innerWidth;
         const H  = window.innerHeight;
         const cx = W / 2;
 

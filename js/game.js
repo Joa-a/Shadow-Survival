@@ -49,15 +49,16 @@ const Game = {
         const W = window.innerWidth;
         const H = window.innerHeight;
 
-        // On mobile: zoom OUT so the player sees more of the arena and has time to dodge.
-        // zoom < 1 = canvas buffer larger than screen = more world visible.
+        // Mobile: zoom OUT aggressively so player sees more world and has time to dodge.
         const minDim = Math.min(W, H);
-        if (minDim < 520) {
-            this.zoom = 0.72;   // ~39% more world visible on mobile
+        if (minDim < 420) {
+            this.zoom = 0.48;   // small phone — sees ~2x more world
+        } else if (minDim < 520) {
+            this.zoom = 0.52;   // normal phone
         } else if (minDim < 768) {
-            this.zoom = 0.85;   // tablet: slight zoom out
+            this.zoom = 0.70;   // tablet
         } else {
-            this.zoom = 1;      // desktop: no change
+            this.zoom = 1;      // desktop
         }
 
         canvas.width  = Math.round(W / this.zoom);
@@ -580,18 +581,17 @@ const Game = {
 
     // ─────────────────────────── SPAWN ───────────────────────────
     spawnEnemy(isBoss = false) {
-        // Spawn OUTSIDE the visible viewport + margin so enemies never pop in next to the player.
-        // Pick a random edge (top/bottom/left/right) and place just beyond the screen boundary.
-        const margin = 80;  // px beyond screen edge
+        // Spawn well outside the visible area.
+        // hw/hh = half the world canvas + generous margin so enemies
+        // are never visible when they appear.
+        const margin = 140;
         const hw = canvas.width  / 2 + margin;
         const hh = canvas.height / 2 + margin;
         let sx, sy;
         if (Math.random() < 0.5) {
-            // Left or right edge
             sx = (Math.random() < 0.5 ? -hw : hw);
             sy = (Math.random() * 2 - 1) * hh;
         } else {
-            // Top or bottom edge
             sx = (Math.random() * 2 - 1) * hw;
             sy = (Math.random() < 0.5 ? -hh : hh);
         }
