@@ -61,8 +61,15 @@ const Intro = {
 
     _resizeLoadCanvas() {
         if (!this._loadCanvas) return;
-        this._loadCanvas.width  = window.innerWidth;
-        this._loadCanvas.height = window.innerHeight;
+        const dpr = window.devicePixelRatio || 1;
+        const W   = window.innerWidth;
+        const H   = window.innerHeight;
+        this._loadCanvas.width  = W * dpr;
+        this._loadCanvas.height = H * dpr;
+        this._loadCanvas.style.width  = W + 'px';
+        this._loadCanvas.style.height = H + 'px';
+        const ctx = this._loadCanvas.getContext('2d');
+        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     },
 
     _loadLoop(now) {
@@ -93,8 +100,10 @@ const Intro = {
 
     _drawLoading(now) {
         const ctx = this._loadCtx;
-        const W = this._loadCanvas.width;
-        const H = this._loadCanvas.height;
+        const dpr = window.devicePixelRatio || 1;
+        this._loadCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const W  = window.innerWidth;
+        const H  = window.innerHeight;
         const cx = W / 2, cy = H / 2;
 
         // Background
@@ -332,8 +341,16 @@ const Intro = {
 
     _resizeTitleCanvas() {
         if (!this._titleCanvas) return;
-        this._titleCanvas.width  = window.innerWidth;
-        this._titleCanvas.height = window.innerHeight;
+        const dpr = window.devicePixelRatio || 1;
+        const W   = window.innerWidth;
+        const H   = window.innerHeight;
+        this._titleCanvas.width  = W * dpr;
+        this._titleCanvas.height = H * dpr;
+        this._titleCanvas.style.width  = W + 'px';
+        this._titleCanvas.style.height = H + 'px';
+        // Scale context so font sizes use CSS pixels (same as before)
+        const ctx = this._titleCanvas.getContext('2d');
+        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     },
 
     _titleLoop(now) {
@@ -390,9 +407,12 @@ const Intro = {
 
     _drawTitle(now) {
         const ctx = this._titleCtx;
-        const W   = this._titleCanvas.width;
-        const H   = this._titleCanvas.height;
-        const cx  = W / 2;
+        const dpr = window.devicePixelRatio || 1;
+        // Reset and apply DPR scale so all drawing uses CSS pixels
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const W  = window.innerWidth;   // CSS pixels — consistent with clamp()
+        const H  = window.innerHeight;
+        const cx = W / 2;
 
         // Deep space background
         ctx.fillStyle = '#02010c';
@@ -624,8 +644,12 @@ const Intro = {
 // Helper — scale pixel value, mobile-aware
 // On mobile (<= 600px) uses 430px as reference so text is readable
 function clamp(val, vmin, vmax) {
-    const W   = window.innerWidth;
-    const ref = W <= 600 ? 430 : 1280;
-    const scale = Math.max(0.9, W / ref);  // never below 90% of base size
+    const W = window.innerWidth;
+    // Mobile: use 430px reference, scale to screen, minimum 100% of val
+    // Desktop: scale from 1280px reference
+    const ref   = W <= 600 ? 430 : 1280;
+    const scale = W <= 600
+        ? Math.max(1.0, W / ref)    // mobile: never smaller than base
+        : Math.max(0.7, W / ref);   // desktop: allow some shrinkage
     return Math.max(vmin, Math.min(vmax, val * scale));
 }

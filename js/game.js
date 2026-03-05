@@ -49,10 +49,16 @@ const Game = {
         const W = window.innerWidth;
         const H = window.innerHeight;
 
-        // On small screens, shrink the canvas buffer so entities appear larger.
-        // The browser stretches the canvas to fill the screen via CSS = free zoom.
-        const minDim  = Math.min(W, H);
-        this.zoom     = minDim < 520 ? Math.min(1.65, 520 / minDim) : 1;
+        // On mobile: zoom OUT so the player sees more of the arena and has time to dodge.
+        // zoom < 1 = canvas buffer larger than screen = more world visible.
+        const minDim = Math.min(W, H);
+        if (minDim < 520) {
+            this.zoom = 0.72;   // ~39% more world visible on mobile
+        } else if (minDim < 768) {
+            this.zoom = 0.85;   // tablet: slight zoom out
+        } else {
+            this.zoom = 1;      // desktop: no change
+        }
 
         canvas.width  = Math.round(W / this.zoom);
         canvas.height = Math.round(H / this.zoom);
@@ -574,10 +580,23 @@ const Game = {
 
     // ─────────────────────────── SPAWN ───────────────────────────
     spawnEnemy(isBoss = false) {
-        const angle = Math.random() * Math.PI * 2;
-        const dist  = Math.max(canvas.width, canvas.height) * 0.62;
-        const x     = this.player.x + Math.cos(angle) * dist;
-        const y     = this.player.y + Math.sin(angle) * dist;
+        // Spawn OUTSIDE the visible viewport + margin so enemies never pop in next to the player.
+        // Pick a random edge (top/bottom/left/right) and place just beyond the screen boundary.
+        const margin = 80;  // px beyond screen edge
+        const hw = canvas.width  / 2 + margin;
+        const hh = canvas.height / 2 + margin;
+        let sx, sy;
+        if (Math.random() < 0.5) {
+            // Left or right edge
+            sx = (Math.random() < 0.5 ? -hw : hw);
+            sy = (Math.random() * 2 - 1) * hh;
+        } else {
+            // Top or bottom edge
+            sx = (Math.random() * 2 - 1) * hw;
+            sy = (Math.random() < 0.5 ? -hh : hh);
+        }
+        const x = this.player.x + sx;
+        const y = this.player.y + sy;
 
         if (isBoss) {
             const bossHp = (350 + this.lastMinute * 200) * (this.gameMode === 'frenetic' ? 1.4 : 1);
@@ -602,6 +621,12 @@ const Game = {
         if (t > 180) pool.push(ENEMY_TYPES[3], ENEMY_TYPES[4]);
         if (t > 240) pool.push(ENEMY_TYPES[4], ENEMY_TYPES[5]);
         if (t > 300) pool.push(ENEMY_TYPES[5], ENEMY_TYPES[5]);
+
+        // Cap ranged enemies: max 5 early game, 8 mid, 10 late
+        const maxRanged = this.time < 180 ? 5 : this.time < 360 ? 8 : 10;
+        const rangedCount = this.enemies.filter(e => e.type === 'ranged' && !e.dead).length;
+        pool = pool.filter(e => e.type !== 'ranged' || rangedCount < maxRanged);
+        if (!pool.length) pool = [ENEMY_TYPES[0]]; // fallback to swarm
 
         const data   = pool[M.randInt(0, pool.length - 1)];
         const hpMult = t < 60 ? 1 : 1 + (t - 60) / 180;
