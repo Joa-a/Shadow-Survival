@@ -505,17 +505,42 @@ const Game = {
         const y = this.player.y + sy;
 
         if (isBoss) {
-            const bossHp = (350 + this.lastMinute * 200) * (this.gameMode === 'frenetic' ? 1.4 : 1);
-            const data   = { type:'boss', hp:bossHp, speed:(115 + this.lastMinute*10) * (this.gameMode === 'frenetic' ? 1.25 : 1), r:32, color:'#ff1144', xp:80, dmg:15, isBoss:true };
-            const e      = new Enemy(x, y, data, 1);
+            // Cycle through 4 distinct boss types
+            const bossIdx = this.bossKills % 4;
+            const BOSS_DEFS = [
+                { bossType:0, name:'⚠ EL COLOSO ⚠',    color:'#ff1133', r:44, speed:90,  dmg:18, xp:100,
+                  desc:'Un gigante de sangre y furia' },
+                { bossType:1, name:'⚠ LA TEJEDORA ⚠',  color:'#cc44ff', r:34, speed:130, dmg:14, xp:110,
+                  desc:'La araña del vacío eterno' },
+                { bossType:2, name:'⚠ EL LICHE ⚠',     color:'#44eeff', r:36, speed:115, dmg:16, xp:120,
+                  desc:'Señor de la muerte helada' },
+                { bossType:3, name:'⚠ EL ABISMO ⚠',    color:'#8800ff', r:40, speed:145, dmg:20, xp:140,
+                  desc:'El vacío que lo devora todo' },
+            ];
+            const bd  = BOSS_DEFS[bossIdx];
+            const hpMult = (this.gameMode === 'frenetic' ? 1.4 : 1);
+            const bossHp = (1200 + this.lastMinute * 400) * hpMult;
+            const data = { type:'boss', bossType:bd.bossType, hp:bossHp,
+                           speed: bd.speed * (this.gameMode==='frenetic'?1.25:1),
+                           r:bd.r, color:bd.color, xp:bd.xp, dmg:bd.dmg, isBoss:true };
+            const e = new Enemy(x, y, data, 1);
+
+            // Despawn all regular enemies
+            this.enemies.forEach(en => { if (!en.isBoss) en.dead = true; });
+            this.enemies = [];
             this.enemies.push(e);
             this.currentBoss = e;
+
+            // Arena color matches boss
+            this.bossArena = { x: this.player.x, y: this.player.y, r: 760, color: bd.color };
+            this.bossArenaAlpha = 0;
+
             document.getElementById('boss-hud').style.display   = 'flex';
-            document.getElementById('boss-name').textContent    = `⚠ HORROR ANTIGUO #${this.lastMinute} ⚠`;
+            document.getElementById('boss-name').textContent    = bd.name;
             document.getElementById('boss-bar-fill').style.width = '100%';
-            this.shake = 16;
+            this.shake = 22;
             AudioEngine.sfxBoss();
-            this.showWaveMessage('¡JEFE APARECE!');
+            this.showWaveMessage(bd.name);
             return;
         }
 
@@ -528,10 +553,8 @@ const Game = {
         if (t > 240) pool.push(ENEMY_TYPES[4], ENEMY_TYPES[5]);
         if (t > 300) pool.push(ENEMY_TYPES[5], ENEMY_TYPES[5]);
 
-        // Cap ranged enemies: max 5 early game, 8 mid, 10 late
-        const maxRanged = this.time < 180 ? 5 : this.time < 360 ? 8 : 10;
-        const rangedCount = this.enemies.filter(e => e.type === 'ranged' && !e.dead).length;
-        pool = pool.filter(e => e.type !== 'ranged' || rangedCount < maxRanged);
+        // Ranged enemies removed — only bosses can shoot projectiles
+        pool = pool.filter(e => e.type !== 'ranged');
         if (!pool.length) pool = [ENEMY_TYPES[0]]; // fallback to swarm
 
         const data   = pool[M.randInt(0, pool.length - 1)];
@@ -704,6 +727,7 @@ const Game = {
             document.getElementById('boss-hud').style.display = 'none';
             this.bossKills++;
             this.currentBoss = null;
+            this.bossArena = null; this._fogDmgFlash = 0;  // remove arena wall
         }
 
         // Buff pills
@@ -771,7 +795,11 @@ const Game = {
                         :             3.5 * Math.pow(1.008, _t - 480);
 
         const curMin = Math.floor(this.time / 60);
-        if (curMin > this.lastMinute) { this.lastMinute = curMin; this.spawnEnemy(true); }
+        if (curMin > this.lastMinute) {
+            this.lastMinute = curMin;
+            // Boss every 3 minutes only
+            if (this.lastMinute % 3 === 0) this.spawnEnemy(true);
+        }
 
         if (this.comboTimer > 0) { this.comboTimer -= dt; if (this.comboTimer <= 0) this.combo = 0; }
 
@@ -805,7 +833,8 @@ const Game = {
             ? Math.min(CONFIG.ENEMY_LIMIT, Math.floor(25 + this.time / 3))
             : Math.min(CONFIG.ENEMY_LIMIT, Math.floor(12 + this.time / 4));
         this.spawnTimer += dt;
-        if (this.spawnTimer >= spawnInterval && this.enemies.filter(e => !e.isBoss).length < maxOnScreen) {
+        // No regular enemy spawns while a boss is alive
+        if (!this.currentBoss && this.spawnTimer >= spawnInterval && this.enemies.filter(e => !e.isBoss).length < maxOnScreen) {
             this.spawnTimer = 0;
             this.spawnEnemy();
         }
@@ -1006,8 +1035,46 @@ const Game = {
         // Enemy projectiles
         for (let i = this.enemyProjectiles.length-1; i >= 0; i--) {
             const ep = this.enemyProjectiles[i];
+            // Homing — steers toward player slowly
+            if (ep.homing) {
+                const hdx = this.player.x - ep.x, hdy = this.player.y - ep.y;
+                const hd  = Math.sqrt(hdx*hdx+hdy*hdy) || 1;
+                const spd = Math.sqrt(ep.vx*ep.vx+ep.vy*ep.vy);
+                ep.vx += (hdx/hd) * spd * 0.055;
+                ep.vy += (hdy/hd) * spd * 0.055;
+                const ns = Math.sqrt(ep.vx*ep.vx+ep.vy*ep.vy);
+                ep.vx = ep.vx/ns*spd; ep.vy = ep.vy/ns*spd;
+            }
+            // Pull — attracts player toward orb
+            if (ep.pull) {
+                const pdx = ep.x - this.player.x, pdy = ep.y - this.player.y;
+                const pd  = Math.sqrt(pdx*pdx+pdy*pdy) || 1;
+                if (pd < 300) {
+                    const pull = (1 - pd/300) * 55 * (1/60);
+                    this.player.x += (pdx/pd) * pull;
+                    this.player.y += (pdy/pd) * pull;
+                }
+            }
             ep.x += ep.vx; ep.y += ep.vy; ep.life--;
-            if (ep.dmg > 0 && M.dist(ep.x, ep.y, this.player.x, this.player.y) < ep.r + this.player.r && this.player.iframe <= 0) {
+
+            // Bible orbs block enemy projectiles
+            let blockedByOrb = false;
+            const bibleWeapon = this.player.weapons.find(w => w.id === 'Bible' || w.id === 'HolyNova');
+            if (bibleWeapon && ep.life > 0) {
+                const numOrbs = bibleWeapon.level >= 3 ? 3 : (bibleWeapon.level >= 2 ? 2 : 1);
+                for (let o = 0; o < numOrbs; o++) {
+                    const orbAngle = bibleWeapon.angle + (Math.PI * 2 / numOrbs) * o;
+                    const orbX = this.player.x + Math.cos(orbAngle) * bibleWeapon.orbitR;
+                    const orbY = this.player.y + Math.sin(orbAngle) * bibleWeapon.orbitR;
+                    if (M.dist(ep.x, ep.y, orbX, orbY) < ep.r + 22) {
+                        ep.life = 0; blockedByOrb = true;
+                        this.spawnParticle(ep.x, ep.y, '#cc99ff', 5);
+                        break;
+                    }
+                }
+            }
+
+            if (!blockedByOrb && ep.dmg > 0 && M.dist(ep.x, ep.y, this.player.x, this.player.y) < ep.r + this.player.r && this.player.iframe <= 0) {
                 if (this.player.activeBuffs.shield > 0) { this.player.activeBuffs.shield = 0; }
                 else {
                     const rawDmg2 = Math.max(1, ep.dmg - this.player.stats.reduction);
@@ -1073,7 +1140,8 @@ const Game = {
     // ─────────────────────────── DRAW ────────────────────────────
     draw() {
         const ctx = this.ctx;
-        ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // ── DARK FOREST background ─────────────────────────────────
+        ctx.fillStyle = '#030a04'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         if (this.state === 'LOADING' || this.state === 'LANDING') return;
         if (this.state === 'START') return;
@@ -1083,42 +1151,173 @@ const Game = {
             ctx.translate((Math.random()*2-1)*this.shake, (Math.random()*2-1)*this.shake);
 
         const off = { x: this.player.x, y: this.player.y };
+        const wt  = Date.now() * 0.0003;
 
-        // Subtle hex grid (very faint, like Magic Survival floor)
-        const gs   = 60;
-        const gOff = { x:((this.player.x%gs)+gs)%gs, y:((this.player.y%gs)+gs)%gs };
-        ctx.strokeStyle = 'rgba(30,20,50,0.22)'; ctx.lineWidth = 0.4;
-        for (let x = -gOff.x; x < canvas.width+gs; x+=gs) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
-        for (let y = -gOff.y; y < canvas.height+gs; y+=gs) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+        // ── DARK FOREST FLOOR ──────────────────────────────────────
+        const tileSize = 72;
+        // Stable world-tile origin: floor player pos to tile grid
+        const startTileX = Math.floor(this.player.x / tileSize);
+        const startTileY = Math.floor(this.player.y / tileSize);
+        // Pixel offset of top-left tile on screen
+        const tOffX = (startTileX * tileSize - this.player.x) + canvas.width  / 2;
+        const tOffY = (startTileY * tileSize - this.player.y) + canvas.height / 2;
+        // How many tiles to draw — start far left/top to cover full screen
+        const tilesX = Math.ceil(canvas.width  / tileSize) + 3;
+        const tilesY = Math.ceil(canvas.height / tileSize) + 3;
+        const startIX = -Math.ceil(canvas.width  / (2 * tileSize)) - 1;
+        const startIY = -Math.ceil(canvas.height / (2 * tileSize)) - 1;
 
-        // Atmospheric wisps — floating background particles
-        if (!this._wisps) {
-            this._wisps = Array.from({length: 28}, () => ({
-                x: Math.random()*2000 - 1000, y: Math.random()*2000 - 1000,
-                r: 18 + Math.random()*40, phase: Math.random()*Math.PI*2,
-                col: ['rgba(80,0,160,', 'rgba(0,40,120,', 'rgba(60,0,100,'][Math.floor(Math.random()*3)]
+        ctx.fillStyle = '#030a04';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Ground patches — wx/wy are STABLE world tile indices, never float
+        for (let ix = startIX; ix < startIX + tilesX + Math.abs(startIX); ix++) {
+            for (let iy = startIY; iy < startIY + tilesY + Math.abs(startIY); iy++) {
+                const wx = startTileX + ix;   // world tile X index (integer, stable)
+                const wy = startTileY + iy;   // world tile Y index (integer, stable)
+                const sx = tOffX + ix * tileSize;  // screen X
+                const sy = tOffY + iy * tileSize;  // screen Y
+
+                // Hash from stable world indices only
+                const h = Math.abs((wx * 2341 + wy * 5683 + wx * wy * 137) % 100);
+                const isMoss = h % 3 === 0;
+                const L = isMoss ? 8 + (h % 6) : 5 + (h % 4);
+                const S = isMoss ? 28 : 8;
+                ctx.fillStyle = `hsl(120,${S}%,${L}%)`;
+                ctx.fillRect(sx, sy, tileSize, tileSize);
+
+                // Root lines — offsets based on hash only (stable)
+                if (h % 4 === 0) {
+                    ctx.strokeStyle = `rgba(0,${18 + h%12},0,0.22)`;
+                    ctx.lineWidth = 0.8;
+                    ctx.beginPath();
+                    ctx.moveTo(sx + h%40, sy + (h*2)%40);
+                    ctx.bezierCurveTo(
+                        sx + h%50,           sy + 20,
+                        sx + 30 + h%20,      sy + 30,
+                        sx + tileSize-h%20,  sy + (h*3)%tileSize
+                    );
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // Mortar lines aligned to stable tile grid
+        ctx.strokeStyle = 'rgba(0,0,0,0.38)'; ctx.lineWidth = 1;
+        for (let ix = startIX; ix < startIX + tilesX + Math.abs(startIX); ix++) {
+            const sx = tOffX + ix * tileSize;
+            ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,canvas.height); ctx.stroke();
+        }
+        for (let iy = startIY; iy < startIY + tilesY + Math.abs(startIY); iy++) {
+            const sy = tOffY + iy * tileSize;
+            ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(canvas.width,sy); ctx.stroke();
+        }
+
+        // ── GLOWING MUSHROOMS (replace torches) ────────────────────
+        if (!this._torches) {
+            this._torches = [];
+            for (let tx2 = -1200; tx2 <= 1200; tx2 += 280) {
+                for (let ty2 = -1200; ty2 <= 1200; ty2 += 280) {
+                    const seed = Math.abs((tx2 * 31 + ty2 * 17) % 100);
+                    this._torches.push({
+                        wx: tx2 + (seed % 80) - 40,
+                        wy: ty2 + ((seed * 3) % 80) - 40,
+                        phase: Math.random() * Math.PI * 2,
+                        flicker: 0.5 + Math.random() * 0.8,
+                        col: [
+                            [0,255,120],   // green
+                            [80,200,255],  // cyan
+                            [180,255,80],  // yellow-green
+                        ][Math.floor(Math.random()*3)],
+                    });
+                }
+            }
+            this._torchParticles = Array.from({length: 50}, () => ({
+                torchIdx: Math.floor(Math.random() * this._torches.length),
+                life: Math.random(),
+                speed: 0.008 + Math.random() * 0.012,
+                ox: (Math.random() - 0.5) * 8,
             }));
         }
-        const wt = Date.now() * 0.0003;
-        this._wisps.forEach((w, i) => {
-            const wx = (w.x - off.x) % 1200 + canvas.width/2;
-            const wy = (w.y - off.y) % 900  + canvas.height/2;
-            const a  = 0.04 + Math.sin(wt + w.phase)*0.02;
-            ctx.globalAlpha = a;
-            ctx.fillStyle = w.col + a + ')';
-            ctx.shadowColor = w.col + '0.6)';
-            ctx.shadowBlur  = 30;
-            ctx.beginPath(); ctx.arc(wx, wy, w.r * (0.8 + Math.sin(wt*1.2 + w.phase)*0.2), 0, Math.PI*2); ctx.fill();
-        });
-        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 
-        // Decorations (dim, spirit-world style)
+        this._torches.forEach(t => {
+            const sx = t.wx - off.x + canvas.width  / 2;
+            const sy = t.wy - off.y + canvas.height / 2;
+            if (sx < -80 || sx > canvas.width + 80 || sy < -80 || sy > canvas.height + 80) return;
+            const [r,g,b] = t.col;
+            const pulse = 0.7 + Math.sin(wt * t.flicker * 3 + t.phase) * 0.3;
+
+            // floor glow
+            const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, 60 * pulse);
+            glow.addColorStop(0,   `rgba(${r},${g},${b},${0.12 * pulse})`);
+            glow.addColorStop(0.6, `rgba(${r},${g},${b},${0.04 * pulse})`);
+            glow.addColorStop(1,   'transparent');
+            ctx.fillStyle = glow;
+            ctx.beginPath(); ctx.arc(sx, sy, 60 * pulse, 0, Math.PI * 2); ctx.fill();
+
+            // mushroom stem
+            ctx.fillStyle = '#1a2a14';
+            ctx.fillRect(sx - 2, sy - 4, 4, 8);
+            // mushroom cap
+            ctx.fillStyle = `rgba(${r},${g},${b},${0.85 * pulse})`;
+            ctx.beginPath(); ctx.ellipse(sx, sy - 5, 7 * pulse, 5 * pulse, 0, Math.PI, 0); ctx.fill();
+            // cap shine
+            ctx.fillStyle = `rgba(255,255,255,${0.3 * pulse})`;
+            ctx.beginPath(); ctx.ellipse(sx - 1, sy - 6, 3, 2, -0.3, Math.PI, 0); ctx.fill();
+            // spots
+            ctx.fillStyle = `rgba(255,255,255,${0.5 * pulse})`;
+            ctx.beginPath(); ctx.arc(sx - 2, sy - 5, 1, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(sx + 2, sy - 6, 0.8, 0, Math.PI*2); ctx.fill();
+        });
+
+        // Floating spores
+        this._torchParticles.forEach(p => {
+            p.life += p.speed;
+            if (p.life > 1) { p.life = 0; p.torchIdx = Math.floor(Math.random() * this._torches.length); p.ox = (Math.random()-0.5)*8; }
+            const t2  = this._torches[p.torchIdx];
+            const [r,g,b] = t2.col;
+            const sx2 = t2.wx - off.x + canvas.width  / 2 + p.ox + Math.sin(p.life * 8) * 4;
+            const sy2 = t2.wy - off.y + canvas.height / 2 - p.life * 30;
+            if (sx2 < -20 || sx2 > canvas.width + 20 || sy2 < -20 || sy2 > canvas.height + 20) return;
+            ctx.globalAlpha = (1 - p.life) * 0.55;
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.beginPath(); ctx.arc(sx2, sy2, 1.2, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        // ── FOREST MIST (green wisps) ───────────────────────────────
+        if (!this._wisps) {
+            this._wisps = Array.from({length: 20}, () => ({
+                x: Math.random()*2000 - 1000, y: Math.random()*2000 - 1000,
+                r: 40 + Math.random()*70, phase: Math.random()*Math.PI*2,
+                col: Math.random()<0.5 ? 'rgba(0,40,10,' : 'rgba(0,20,30,'
+            }));
+        }
+        this._wisps.forEach(w => {
+            const wx2 = (w.x - off.x) % 1200 + canvas.width/2;
+            const wy2 = (w.y - off.y) % 900  + canvas.height/2;
+            const a   = 0.08 + Math.sin(wt * 0.3 + w.phase) * 0.04;
+            ctx.globalAlpha = a;
+            ctx.fillStyle   = w.col + '1)';
+            ctx.beginPath(); ctx.arc(wx2, wy2, w.r, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        // Decorations (roots/stones overgrown)
         this.decorations.forEach(d => {
             const sx = d.x-off.x+canvas.width/2, sy = d.y-off.y+canvas.height/2;
             if (sx<-50||sx>canvas.width+50||sy<-50||sy>canvas.height+50) return;
-            ctx.globalAlpha = 0.18;
-            if (d.type==='rock') { ctx.fillStyle=`hsl(${d.hue},10%,15%)`; ctx.fillRect(sx,sy,d.size,d.size); }
-            else { ctx.fillStyle=`hsl(${d.hue},20%,18%)`; ctx.beginPath(); ctx.arc(sx,sy,d.size/2,0,Math.PI*2); ctx.fill(); }
+            ctx.globalAlpha = 0.55;
+            if (d.type==='rock') {
+                ctx.fillStyle = `hsl(120,${8+d.hue%10}%,${8+d.hue%5}%)`;
+                ctx.fillRect(sx - d.size/2, sy - d.size/2, d.size, d.size * 0.7);
+                // moss on top
+                ctx.fillStyle = `hsl(120,30%,${10+d.hue%8}%)`;
+                ctx.fillRect(sx - d.size/2, sy - d.size/2, d.size, d.size * 0.2);
+            } else {
+                ctx.fillStyle = `hsl(120,25%,${8+d.hue%6}%)`;
+                ctx.beginPath(); ctx.arc(sx, sy, d.size/2, 0, Math.PI*2); ctx.fill();
+            }
             ctx.globalAlpha = 1;
         });
 
@@ -1266,7 +1465,84 @@ const Game = {
             ctx.fillText(t.text, 0, 0); ctx.restore();
         }
         ctx.globalAlpha = 1;
+
+        // ── BOSS ARENA ───────────────────────────────────────────
+        if (this.bossArena) {
+            this.bossArenaAlpha = Math.min(1, (this.bossArenaAlpha || 0) + 0.018);
+            const ar = this.bossArena;
+            const sx = ar.x - off.x + canvas.width  / 2;
+            const sy = ar.y - off.y + canvas.height / 2;
+            const t2 = Date.now() * 0.002;
+            const fa = this.bossArenaAlpha;
+
+            ctx.save();
+
+            // Single-pass fog: radial gradient from clear center → dense black outside
+            // Uses clip to avoid redrawing the inside of the arena
+            const fogGrad = ctx.createRadialGradient(sx, sy, ar.r * 0.78, sx, sy, ar.r * 1.6);
+            fogGrad.addColorStop(0,    'rgba(0,0,0,0)');
+            fogGrad.addColorStop(0.25, `rgba(15,0,25,${0.45 * fa})`);
+            fogGrad.addColorStop(0.55, `rgba(6,0,12,${0.82 * fa})`);
+            fogGrad.addColorStop(0.8,  `rgba(2,0,6,${0.96 * fa})`);
+            fogGrad.addColorStop(1,    `rgba(0,0,2,${1.0  * fa})`);
+            ctx.fillStyle = fogGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Hard black beyond 1.6× radius (single fillRect, no evenodd)
+            if (ar.r * 1.6 < Math.max(canvas.width, canvas.height)) {
+                ctx.save();
+                ctx.globalAlpha = 0.98 * fa;
+                ctx.fillStyle = '#000002';
+                ctx.beginPath();
+                ctx.rect(0, 0, canvas.width, canvas.height);
+                ctx.arc(sx, sy, ar.r * 1.6, 0, Math.PI * 2, true);
+                ctx.fill('evenodd');
+                ctx.restore();
+            }
+
+            // Barrier ring (1 stroke only, no shadowBlur loop)
+            const pulse = 0.6 + Math.sin(t2 * 2.4) * 0.4;
+            const bCol  = ar.color || '#ff1133';
+            ctx.beginPath(); ctx.arc(sx, sy, ar.r, 0, Math.PI * 2);
+            ctx.strokeStyle = bCol + Math.round(0.7 * pulse * fa * 255).toString(16).padStart(2,'0');
+            ctx.lineWidth = 3;
+            ctx.shadowColor = bCol;
+            ctx.shadowBlur  = 16;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Inner glow ring (soft)
+            ctx.beginPath(); ctx.arc(sx, sy, ar.r * 0.97, 0, Math.PI * 2);
+            ctx.strokeStyle = bCol + '55';
+            ctx.lineWidth = 8;
+            ctx.stroke();
+
+            // Runes on barrier (6 only for perf)
+            const RUNES = ['⚔','☠','⚠','⚡','💀','🔥'];
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2 + t2 * 0.22;
+                ctx.globalAlpha = (0.5 + Math.sin(t2*2.5+i)*0.3) * fa;
+                ctx.fillStyle   = '#ff2244';
+                ctx.fillText(RUNES[i], sx + Math.cos(angle) * ar.r, sy + Math.sin(angle) * ar.r);
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+
         ctx.restore();
+
+        // Fog damage flash (purple-black vignette when in boss fog)
+        if (this._fogDmgFlash > 0.01) {
+            this._fogDmgFlash *= 0.88;
+            const fogFlash = ctx.createRadialGradient(canvas.width/2,canvas.height/2,0,canvas.width/2,canvas.height/2,canvas.width*0.7);
+            fogFlash.addColorStop(0,   'transparent');
+            fogFlash.addColorStop(0.6, `rgba(30,0,50,${(this._fogDmgFlash*0.4).toFixed(2)})`);
+            fogFlash.addColorStop(1,   `rgba(10,0,20,${(this._fogDmgFlash*0.85).toFixed(2)})`);
+            ctx.fillStyle = fogFlash;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         // Damage flash — drawn OUTSIDE the shake transform (screen-space)
         if (this.dmgFlash > 0.01) {

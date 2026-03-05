@@ -94,9 +94,35 @@ class Player extends Entity {
             if (this.trail.length > 12) this.trail.pop();
             this.x += input.x * this.speed * speedMult * dt;
             this.y += input.y * this.speed * speedMult * dt;
+            // Hard wall at arena edge
+            if (typeof Game !== 'undefined' && Game.bossArena) {
+                const ar   = Game.bossArena;
+                const dx   = this.x - ar.x, dy = this.y - ar.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist > ar.r - this.r - 4) {
+                    const push = ar.r - this.r - 4;
+                    this.x = ar.x + (dx / dist) * push;
+                    this.y = ar.y + (dy / dist) * push;
+                }
+            }
             this.dir.x = input.x; this.dir.y = input.y;
             this.moving = true;
         } else { this.moving = false; }
+
+        // Boss fog damage — always runs (not just when moving)
+        if (typeof Game !== 'undefined' && Game.bossArena) {
+            const ar   = Game.bossArena;
+            const dx   = this.x - ar.x, dy = this.y - ar.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const fogStart = ar.r * 0.82;
+            if (dist > fogStart) {
+                const depth = Math.min(1, (dist - fogStart) / (ar.r * 0.18));
+                // Gentle: 0.5 HP/s at edge → 4 HP/s deep in fog
+                const dmgRate = (0.5 + depth * depth * 3.5) * dt;
+                this.hp = Math.max(0, this.hp - dmgRate);
+                Game._fogDmgFlash = Math.min(0.7, (Game._fogDmgFlash || 0) + depth * 0.04);
+            }
+        }
 
         // Trail decay
         for (let i = this.trail.length - 1; i >= 0; i--) {
