@@ -219,10 +219,10 @@ const EVOLUTION_TABLE = [
 
 // ═══ ENEMY TEMPLATES ═══
 const ENEMY_TYPES = [
-    { type:'swarm',    hp:22,  speed:125, r:9,  color:'#ff44aa', xp:3,  dmg:5  },
-    { type:'chase',    hp:32,  speed:105, r:11, color:'#8844ff', xp:5,  dmg:7  },
-    { type:'ranged',   hp:40,  speed:80,  r:12, color:'#44aaff', xp:8,  dmg:9  },
-    { type:'charger',  hp:55,  speed:95,  r:14, color:'#ffaa00', xp:12, dmg:13 },
-    { type:'exploder', hp:65,  speed:55,  r:18, color:'#00ff88', xp:16, dmg:9  },
-    { type:'phantom',  hp:45,  speed:90,  r:13, color:'#cc44ff', xp:14, dmg:11 },
+    { type:'swarm',    hp:22,  speed:125, r:9,  color:'#c0d8ff', xp:3,  dmg:5  },  // pale blue wisp
+    { type:'chase',    hp:32,  speed:105, r:11, color:'#d0aaff', xp:5,  dmg:7  },  // pale violet
+    { type:'ranged',   hp:40,  speed:80,  r:12, color:'#aaffee', xp:8,  dmg:9  },  // pale teal
+    { type:'charger',  hp:55,  speed:95,  r:14, color:'#ffddaa', xp:12, dmg:13 },  // pale amber
+    { type:'exploder', hp:65,  speed:55,  r:18, color:'#aaffaa', xp:16, dmg:9  },  // pale green
+    { type:'phantom',  hp:45,  speed:90,  r:13, color:'#ffffff', xp:14, dmg:11 },  // pure white spirit
 ];

@@ -111,14 +111,15 @@ class Player extends Entity {
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
 
-        // Trail
+        // Trail — blue-white spirit trail
+        const tc = this.activeBuffs.speed > 0 ? '#44ffaa' : this.activeBuffs.damage > 0 ? '#ff8844' : '#88aaff';
         for (let i = 0; i < this.trail.length; i++) {
             const tp    = this.trail[i];
-            const alpha = tp.t / 0.3 * (1 - i / this.trail.length) * 0.4;
+            const alpha = tp.t / 0.3 * (1 - i / this.trail.length) * 0.35;
             const sx    = tp.x - off.x;
             const sy    = tp.y - off.y;
             ctx.globalAlpha = Math.max(0, alpha);
-            ctx.fillStyle   = '#ff2255';
+            ctx.fillStyle   = tc;
             ctx.beginPath();
             ctx.arc(sx, sy, this.r * (0.5 - i * 0.04), 0, Math.PI * 2);
             ctx.fill();
@@ -126,8 +127,18 @@ class Player extends Entity {
         ctx.globalAlpha = 1;
 
         // Iframe flicker
-        if (this.iframe > 0 && Math.floor(Date.now() / 55) % 2 === 0)
+        if (this.iframe > 0 && this.iframe < 5 && Math.floor(Date.now() / 55) % 2 === 0)
             ctx.globalAlpha = 0.3;
+
+        // Invincible mega-glow (rune effect when iframe > 4)
+        if (this.iframe > 4) {
+            const t = Date.now() * 0.003;
+            ctx.globalAlpha = 0.3 + Math.sin(t * 6) * 0.15;
+            ctx.fillStyle = '#aa66ff';
+            ctx.shadowColor = '#aa66ff'; ctx.shadowBlur = 40;
+            ctx.beginPath(); ctx.arc(0, 0, this.r * 2.8, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+        }
 
         // Shield glow
         if (this.activeBuffs.shield > 0) {
@@ -136,10 +147,10 @@ class Player extends Entity {
             ctx.beginPath(); ctx.arc(0, 0, this.r + 10, 0, Math.PI * 2); ctx.stroke();
             ctx.shadowBlur = 0;
         }
-        // Damage buff glow
+        // Damage buff glow (berserk rune)
         if (this.activeBuffs.damage > 0) {
-            ctx.strokeStyle = 'rgba(255,80,80,0.7)'; ctx.lineWidth = 3;
-            ctx.shadowColor = '#f55'; ctx.shadowBlur = 14;
+            ctx.strokeStyle = 'rgba(255,200,0,0.8)'; ctx.lineWidth = 3;
+            ctx.shadowColor = '#ffdd00'; ctx.shadowBlur = 18;
             ctx.beginPath(); ctx.arc(0, 0, this.r + 6, 0, Math.PI * 2); ctx.stroke();
             ctx.shadowBlur = 0;
         }
@@ -151,17 +162,20 @@ class Player extends Entity {
             ctx.shadowBlur = 0;
         }
 
-        // Body
+        // Body — bright sorcerer core
         ctx.globalAlpha = 1;
-        ctx.fillStyle   = '#fff';
-        ctx.shadowColor = '#ff2255'; ctx.shadowBlur = CONFIG.IS_MOBILE ? 8 : 18;
+        ctx.fillStyle   = '#ddeeff';
+        ctx.shadowColor = '#8899ff'; ctx.shadowBlur = CONFIG.IS_MOBILE ? 10 : 22;
         ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI * 2); ctx.fill();
+        // Inner highlight
         ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(-this.r*0.25, -this.r*0.25, this.r*0.35, 0, Math.PI*2); ctx.fill();
 
-        // Character icon (small)
-        ctx.font = `${this.r * 0.9}px serif`;
+        // Character icon
+        ctx.font = (this.r * 0.9) + 'px serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillText(this.charData.icon, 0, 1);
 
         ctx.restore();

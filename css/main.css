@@ -1,13 +1,13 @@
 /* ── main.css ── Shadow Survivor: Eternal Night ── */
 :root {
-    --primary: #ff2255;
+    --primary: #aa44ff;
     --secondary: #4466ff;
-    --accent: #ffd700;
+    --accent: #88aaff;
     --accent2: #00ffcc;
-    --bg: #03010a;
-    --panel: rgba(10, 6, 20, 0.97);
-    --border: #2a1a3a;
-    --glow-red: rgba(255,34,85,0.4);
+    --bg: #000000;
+    --panel: rgba(4, 2, 12, 0.97);
+    --border: #1a0a2e;
+    --glow-red: rgba(170,68,255,0.4);
     --glow-blue: rgba(68,102,255,0.4);
 }
 
@@ -167,32 +167,12 @@ canvas { display:block; touch-action:none; }
     font-size:10px; color:#2a1a3a; font-family:'Orbitron',sans-serif; letter-spacing:2px;
 }
 
-/* ─── MINIMAP ─── */
-/* ─── MINIMAP — top-right, below pause button, never over controls ─── */
-#minimap {
-    position:fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 54px);
-    right:16px;
-    width:100px; height:100px; z-index:20;
-    border:1px solid #3a1a4a; background:rgba(3,1,15,0.88);
-    border-radius:4px; overflow:hidden;
-    box-shadow:0 0 14px rgba(68,0,80,0.5);
-    /* Shrink on very small phones */
-}
-@media (max-height: 700px) {
-    #minimap { width:80px; height:80px; top: calc(env(safe-area-inset-top, 0px) + 50px); }
-}
-#minimap canvas { width:100%; height:100%; }
-#minimap-label {
-    position:absolute; bottom:3px; left:50%; transform:translateX(-50%);
-    font-size:7px; color:#554455; letter-spacing:2px; font-family:'Orbitron',sans-serif;
-}
+/* ─── MINIMAP — defined in hud.css ZONA E ─── */
 
 /* ─── WEAPON BAR — bottom-left, above joystick ─── */
 #weapon-bar {
     position:fixed;
-    /* sits above the joystick zone */
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 165px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 168px);
     left:16px;
     display:flex; gap:5px; z-index:20; pointer-events:none;
 }
@@ -256,16 +236,18 @@ canvas { display:block; touch-action:none; }
     .action-btn { width:96px; height:96px; }
 }
 
-/* Pause button — top-right, respects notch */
+/* Pause button — ZONA C right: top-right, 12px from safe area */
 #pause-btn {
     position:fixed;
     top: calc(env(safe-area-inset-top, 0px) + 12px);
     right:16px;
-    padding:clamp(8px,2vw,10px) clamp(14px,3.5vw,18px);
-    background:rgba(0,0,0,0.65); border:1px solid #3a2a4a;
+    padding: 9px 15px;
+    background:rgba(0,0,0,0.75); border:1px solid #3a2a4a;
     color:#887799; border-radius:5px; pointer-events:auto; z-index:100;
-    font-family:'Orbitron',sans-serif; font-size:clamp(11px,2.8vw,13px); cursor:pointer;
-    letter-spacing:1px; min-height:44px; min-width:44px;
+    font-family:'Orbitron',sans-serif; font-size:clamp(10px,2.5vw,12px); cursor:pointer;
+    letter-spacing:1px; min-height:40px; min-width:40px;
+    /* Fixed width so minimap can sit cleanly below it */
+    width: 80px; text-align: center; box-sizing: border-box;
 }
 
 /* ══════════════════════════════════════════
@@ -273,7 +255,7 @@ canvas { display:block; touch-action:none; }
    ══════════════════════════════════════════ */
 #achievement-popup {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 64px);
+    top: calc(env(safe-area-inset-top, 0px) + 152px);
     right: -320px;
     z-index: 900;
     background: linear-gradient(135deg, rgba(12,6,24,0.98), rgba(20,8,36,0.98));
@@ -433,17 +415,7 @@ canvas { display:block; touch-action:none; }
     font-size: 10px;
     padding: 7px 16px;
 }
-.btn-ad-hud {
-    position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 60px);
-    right: 16px;
-    font-size: clamp(9px,2.2vw,11px);
-    padding: clamp(6px,1.5vw,8px) clamp(10px,2.5vw,14px);
-    border-radius: 12px;
-    z-index: 20;
-    pointer-events: auto;
-    min-height: 36px;
-}
+/* .btn-ad-hud — defined in hud.css ZONA F */
 .ad-badge {
     background: #ff8800;
     color: #000;
@@ -512,20 +484,184 @@ canvas { display:block; touch-action:none; }
     0%,100% { box-shadow: 0 0 14px rgba(255,34,85,0.4); }
     50%      { box-shadow: 0 0 28px rgba(255,34,85,0.7), 0 0 50px rgba(255,34,85,0.2); }
 }
-/* Frenetic mode HUD badge */
-#frenetic-badge {
+/* #frenetic-badge — defined in hud.css ZONA E */
+
+/* ══════════════════════════════════════════════════════════════
+   LOGIN SCREEN
+   ══════════════════════════════════════════════════════════════ */
+.login-box {
+    display: flex; flex-direction: column; align-items: center;
+    background: rgba(4,2,14,0.97);
+    border: 1px solid #2a1040;
+    border-radius: 14px;
+    padding: 36px 32px 28px;
+    width: min(360px, 90vw);
+    box-shadow: 0 0 60px rgba(120,60,255,0.2);
+    position: relative; z-index: 1;
+}
+.login-moon {
+    font-size: 44px; margin-bottom: 10px;
+    filter: drop-shadow(0 0 16px rgba(160,100,255,0.7));
+    animation: loginMoonFloat 3s ease-in-out infinite;
+}
+@keyframes loginMoonFloat {
+    0%,100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+}
+.login-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(16px,5vw,24px); font-weight: 900;
+    color: var(--primary); letter-spacing: 4px;
+    text-shadow: 0 0 24px var(--primary);
+    margin-bottom: 6px;
+}
+.login-sub {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(7px,2vw,9px); color: #4a2a5a;
+    letter-spacing: 3px; text-align: center; margin-bottom: 24px;
+}
+.login-field-wrap {
+    width: 100%; margin-bottom: 6px;
+}
+.login-input {
+    width: 100%; padding: 13px 16px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #3a1a5a; border-radius: 8px;
+    color: #fff; font-family: 'Orbitron', sans-serif;
+    font-size: clamp(12px,3vw,15px); letter-spacing: 2px;
+    outline: none; box-sizing: border-box;
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+.login-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 14px rgba(170,68,255,0.3);
+}
+.login-input::placeholder { color: #3a2245; }
+.login-error {
+    font-size: 10px; color: #ff4466;
+    font-family: 'Orbitron', sans-serif;
+    letter-spacing: 1px; min-height: 16px;
+    opacity: 0; transition: opacity 0.2s;
+    margin-bottom: 8px;
+}
+.login-btn {
+    width: 100%; margin-top: 8px !important;
+    padding: 14px !important;
+}
+.login-hint {
+    margin-top: 14px;
+    font-size: 9px; color: #2e1a3a;
+    letter-spacing: 2px;
+    font-family: 'Orbitron', sans-serif;
+}
+
+/* ── HUD player name ── */
+.hud-player-name {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 56px);
+    top: calc(env(safe-area-inset-top, 0px) + 82px);
     left: 16px;
     font-family: 'Orbitron', sans-serif;
-    font-size: 8px;
-    letter-spacing: 2px;
-    color: var(--primary);
-    border: 1px solid var(--primary);
-    padding: 3px 8px;
-    border-radius: 3px;
+    font-size: clamp(7px,1.8vw,9px);
+    color: rgba(180,140,255,0.7);
+    letter-spacing: 1px;
     pointer-events: none;
-    z-index: 20;
-    display: none;
-    animation: freneticPulse 0.9s infinite;
+    z-index: 15;
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: 120px;
+    text-overflow: ellipsis;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LEADERBOARD MODAL
+   ══════════════════════════════════════════════════════════════ */
+.lb-panel {
+    background: rgba(4,2,14,0.98);
+    border: 1px solid #2a1040;
+    border-radius: 14px;
+    padding: 24px 20px 20px;
+    width: min(420px, 93vw);
+    max-height: 85vh;
+    overflow-y: auto;
+    position: relative; z-index: 1;
+    box-shadow: 0 0 60px rgba(120,60,255,0.2);
+}
+.lb-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+}
+.lb-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(15px,4vw,20px); font-weight: 900;
+    color: var(--accent); letter-spacing: 4px;
+    text-shadow: 0 0 20px var(--accent);
+}
+.lb-close {
+    background: none; border: 1px solid #3a1a5a;
+    color: #554466; font-size: 14px;
+    width: 32px; height: 32px; border-radius: 6px;
+    cursor: pointer; transition: all 0.15s;
+}
+.lb-close:hover { color: #fff; border-color: #664477; }
+.lb-subtitle {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px; color: #3a1a5a; letter-spacing: 4px;
+    margin-bottom: 18px;
+}
+.lb-list {
+    display: flex; flex-direction: column; gap: 6px;
+}
+.lb-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px; border-radius: 8px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.12s;
+}
+.lb-row.lb-me {
+    background: rgba(170,68,255,0.08);
+    border-color: rgba(170,68,255,0.3);
+    box-shadow: 0 0 12px rgba(170,68,255,0.15);
+}
+.lb-medal { font-size: 16px; min-width: 22px; text-align: center; flex-shrink: 0; }
+.lb-rank  { font-family: 'Orbitron', sans-serif; font-size: 9px; color: #443355; }
+.lb-avatar{ font-size: 16px; flex-shrink: 0; }
+.lb-info  { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lb-name  {
+    font-family: 'Orbitron', sans-serif; font-size: clamp(9px,2.5vw,11px);
+    color: #aa88cc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lb-row.lb-me .lb-name { color: #cc99ff; }
+.lb-date  { font-size: 8px; color: #3a1a5a; }
+.lb-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.lb-time  {
+    font-family: 'Orbitron', sans-serif; font-size: clamp(11px,3vw,14px);
+    color: var(--accent); font-weight: 700;
+}
+.lb-kills { font-size: clamp(8px,2vw,10px); color: #554455; }
+.lb-mode-frenetic { font-size: 10px; margin-left: 4px; filter: drop-shadow(0 0 4px #ffdd00); }
+.lb-empty {
+    text-align: center; padding: 32px 20px;
+    font-family: 'Orbitron', sans-serif; font-size: 10px;
+    color: #3a1a5a; letter-spacing: 3px; line-height: 1.8;
+}
+.lb-loading {
+    text-align: center; padding: 28px;
+    font-family: 'Orbitron', sans-serif; font-size: 10px;
+    color: #553366; letter-spacing: 3px;
+    animation: lbBlink 1s infinite;
+}
+@keyframes lbBlink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+.lb-total {
+    font-family: 'Orbitron', sans-serif; font-size: 9px;
+    color: #553366; letter-spacing: 2px; margin-bottom: 12px; text-align: center;
+}
+.lb-total strong { color: var(--accent); }
+.lb-global-tag { color: #44aaff; font-size: 8px; }
+.lb-local-tag  { color: #665566; font-size: 8px; }
+/* ranking button in start/go screens */
+.lb-trigger-btn {
+    margin-top: 8px !important;
+    font-size: clamp(9px,2.5vw,11px) !important;
+    padding: 10px 24px !important;
 }

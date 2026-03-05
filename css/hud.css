@@ -1,11 +1,22 @@
-/* ── hud.css — Mobile-first redesign ── */
+/* ── hud.css — Layout sin colisiones ──────────────────────────────
+ *
+ *  ZONA A  y = 0-5px           XP bar (full width)
+ *  ZONA B  y = safe+8px        xp-label (center) | death-bar (right, before pause)
+ *  ZONA C  y = safe+14 – +58   .top-bar stats (left) | pause-btn (right)
+ *  ZONA D  y = safe+22px       buff-bar (center)
+ *  ZONA E  y = safe+64 – +144  frenetic-badge (left) | minimap 80×80 (right)
+ *  ZONA F  y = safe+150 – +190 combo-badge (left) | btn-ad-hud (right)
+ *  ZONA G  y = safe+50 center  boss-hud (solo cuando activo)
+ *  BOTTOM  y = bottom-safe     hp-bar
+ *
+ * ────────────────────────────────────────────────────────────────── */
 
 #hud {
     position:fixed; inset:0;
     pointer-events:none; z-index:10; color:#fff;
 }
 
-/* ── XP BAR — top of screen ── */
+/* ── ZONA A: XP BAR — full width top ──────────────────────────── */
 .xp-container {
     position:fixed; top:0; left:0; width:100%; height:5px;
     background:rgba(0,0,0,0.6); z-index:12;
@@ -16,19 +27,76 @@
     box-shadow:0 0 8px #00aaff, 0 0 16px #0044ff;
     transition:width 0.3s cubic-bezier(0.4,0,0.2,1);
 }
-#xp-label {
-    position:fixed; top:7px; left:50%; transform:translateX(-50%);
-    font-size:clamp(10px,2.5vw,11px); color:#0088ff; letter-spacing:2px;
-    font-family:'Orbitron',sans-serif; pointer-events:none; z-index:13;
-    text-shadow:0 0 8px #0088ff;
+#xp-boost-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 3px; background: rgba(255,230,0,0.15);
+}
+#xp-boost-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #ffcc00, #ffee44);
+    box-shadow: 0 0 6px #ffcc00;
+    transition: width 0.3s;
 }
 
-/* ── HP BAR — bottom of screen, above safe area ── */
+/* ── ZONA B row 1: xp-label center ── */
+#xp-label {
+    position:fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: 50%; transform: translateX(-50%);
+    font-size: clamp(9px,2.2vw,10px); color:#0088ff; letter-spacing:2px;
+    font-family:'Orbitron',sans-serif; pointer-events:none; z-index:13;
+    text-shadow:0 0 8px #0088ff;
+    white-space: nowrap;
+}
+
+/* ── ZONA B row 1: death-bar — right side, shares row with xp-label ── */
+#death-bar-wrap {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 6px);
+    /* sits LEFT of the pause button (pause btn right:16 + ~90px width) */
+    right: clamp(110px, 26vw, 160px);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 15;
+    pointer-events: none;
+}
+#death-bar-track {
+    width: clamp(44px, 10vw, 72px);
+    height: 5px;
+    background: rgba(80,0,0,0.5);
+    border: 1px solid rgba(180,0,0,0.3);
+    border-radius: 3px;
+    overflow: hidden;
+}
+#death-bar-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #660000, #cc0022, #ff2244);
+    box-shadow: 0 0 6px #ff0022;
+    border-radius: 3px;
+    transition: width 0.2s linear;
+}
+#death-bar-fill.danger { animation: deathPulse 0.4s infinite; }
+@keyframes deathPulse {
+    0%,100% { box-shadow: 0 0 6px #ff0022; }
+    50%      { box-shadow: 0 0 18px #ff0022, 0 0 32px rgba(255,0,34,0.5); }
+}
+#death-bar-pct {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(6px,1.6vw,8px);
+    color: #cc2233; letter-spacing: 1px; min-width: 22px;
+}
+#death-bar-skull {
+    font-size: clamp(9px,2.2vw,11px);
+    filter: drop-shadow(0 0 4px #ff0022);
+    animation: skullPulse 2s infinite;
+}
+@keyframes skullPulse { 0%,100%{opacity:0.5;} 50%{opacity:1;} }
+
+/* ── HP BAR — bottom ── */
 #hp-container {
-    position:fixed; bottom:0; left:0; width:100%; height:7px;
+    position:fixed; left:0; width:100%; height:7px;
     background:rgba(0,0,0,0.65); z-index:11;
-    /* iPhone home indicator clearance */
-    margin-bottom: env(safe-area-inset-bottom, 0px);
     bottom: env(safe-area-inset-bottom, 0px);
 }
 #hp-fill {
@@ -41,79 +109,136 @@
     position:fixed;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 9px);
     left:50%; transform:translateX(-50%);
-    font-size:clamp(10px,2.5vw,11px); color:#ff2255; letter-spacing:2px;
+    font-size:clamp(9px,2.2vw,10px); color:#ff2255; letter-spacing:2px;
     font-family:'Orbitron',sans-serif; pointer-events:none; z-index:12;
     text-shadow:0 0 8px #ff2255;
 }
 
-/* ── TOP STATS BAR ── */
+/* ── ZONA C: TOP STATS BAR (left side) ── */
 .top-bar {
-    display:flex; justify-content:space-between; align-items:flex-start;
-    padding: calc(env(safe-area-inset-top, 0px) + 16px) clamp(14px,4vw,28px) 0;
-    background:linear-gradient(to bottom, rgba(0,0,0,0.82), transparent);
-    /* Leave room for pause button on the right */
-    padding-right: clamp(80px,18vw,120px);
+    display:flex; justify-content:flex-start; align-items:flex-start;
+    gap: clamp(14px, 4vw, 28px);
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 0;
+    background:linear-gradient(to bottom, rgba(0,0,0,0.75), transparent);
+    /* don't bleed into right-side controls */
+    padding-right: clamp(120px, 28vw, 180px);
 }
 .stat-group { display:flex; flex-direction:column; align-items:center; gap:1px; }
 .label {
-    font-size:clamp(9px,2.2vw,11px); color:#553355; text-transform:uppercase;
+    font-size:clamp(8px,2vw,10px); color:#553355; text-transform:uppercase;
     letter-spacing:2px; font-family:'Orbitron',sans-serif;
 }
 .value {
     font-family:'Orbitron',sans-serif;
-    font-size:clamp(12px,3.5vw,18px);
+    font-size:clamp(12px,3.2vw,17px);
     color:var(--accent); text-shadow:0 0 10px var(--accent);
 }
 
-/* ── COMBO BADGE — top right below pause btn ── */
-#combo-badge {
+/* ── ZONA D: BUFF BAR — center, below xp-label ── */
+#buff-bar {
     position:fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 68px);
-    right:16px;
-    background:var(--panel); border:2px solid var(--primary);
-    padding:6px 14px; transform:skewX(-8deg);
-    display:none; flex-direction:column; align-items:flex-end;
-    box-shadow:0 0 18px var(--glow-red);
+    top: calc(env(safe-area-inset-top, 0px) + 22px);
+    left: 50%; transform: translateX(-50%);
+    display:flex; gap:6px; pointer-events:none; z-index:11;
+    white-space: nowrap;
+}
+.buff-pill {
+    background:var(--panel); border:1px solid #444; padding:3px 10px;
+    font-size:10px; display:flex; gap:5px; align-items:center;
+    font-family:'Rajdhani',sans-serif; border-radius:20px;
 }
 
-/* ── BOSS HUD ── */
+/* ── ZONA E right: MINIMAP 80×80 ── */
+#minimap {
+    position:fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 64px);
+    right: 16px;
+    width: 80px; height: 80px;
+    z-index: 20;
+    border:1px solid #3a1a4a; background:rgba(3,1,15,0.88);
+    border-radius:4px; overflow:hidden;
+    box-shadow:0 0 14px rgba(68,0,80,0.5);
+}
+#minimap canvas { width:100%; height:100%; }
+#minimap-label {
+    position:absolute; bottom:2px; left:50%; transform:translateX(-50%);
+    font-size:6px; color:#554455; letter-spacing:2px; font-family:'Orbitron',sans-serif;
+}
+
+/* ── ZONA E left: FRENETIC BADGE ── */
+#frenetic-badge {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 64px);
+    left: 16px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(7px,1.8vw,9px);
+    letter-spacing: 2px;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 3px 8px;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 20;
+    display: none;
+    animation: freneticGlow 0.9s infinite;
+}
+@keyframes freneticGlow {
+    0%,100% { box-shadow: 0 0 8px rgba(170,68,255,0.4); }
+    50%      { box-shadow: 0 0 18px rgba(170,68,255,0.8), 0 0 32px rgba(170,68,255,0.3); }
+}
+
+/* ── ZONA F right: btn-ad-hud (below minimap) ── */
+.btn-ad-hud {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 152px);
+    right: 16px;
+    font-size: clamp(8px,2vw,10px);
+    padding: clamp(5px,1.4vw,7px) clamp(9px,2.2vw,13px);
+    border-radius: 12px;
+    z-index: 20;
+    pointer-events: auto;
+    min-height: 34px;
+}
+
+/* ── ZONA F left: COMBO BADGE ── */
+#combo-badge {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 152px);
+    left: 16px;
+    background:var(--panel); border:2px solid var(--primary);
+    padding:5px 12px; transform:skewX(-8deg);
+    display:none; flex-direction:column; align-items:flex-start;
+    box-shadow:0 0 18px var(--glow-red);
+    z-index: 20;
+}
+
+/* ── ZONA G center: BOSS HUD ── */
 #boss-hud {
     display:none; position:fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 50px);
+    top: calc(env(safe-area-inset-top, 0px) + 14px);
     left:50%; transform:translateX(-50%);
-    width:min(480px,88vw);
-    flex-direction:column; align-items:center; gap:6px; z-index:12;
+    width:min(320px,72vw);
+    flex-direction:column; align-items:center; gap:5px; z-index:14;
 }
 #boss-name {
-    color:var(--primary); font-size:clamp(10px,2.5vw,12px); letter-spacing:4px;
+    color:var(--primary); font-size:clamp(9px,2.3vw,11px); letter-spacing:3px;
     font-family:'Orbitron',sans-serif; text-shadow:0 0 14px var(--primary);
     animation:bossNamePulse 1.5s infinite;
 }
 @keyframes bossNamePulse { 0%,100%{opacity:1;} 50%{opacity:0.6;} }
 #boss-bar-bg {
-    width:100%; height:13px; background:rgba(0,0,0,0.9);
+    width:100%; height:11px; background:rgba(0,0,0,0.9);
     border:1px solid var(--primary);
-    box-shadow:0 0 18px var(--glow-red), inset 0 0 6px rgba(255,0,0,0.2);
+    box-shadow:0 0 14px var(--glow-red), inset 0 0 6px rgba(255,0,0,0.2);
     border-radius:2px; overflow:hidden;
 }
 #boss-bar-fill {
     height:100%; width:100%;
-    background:linear-gradient(90deg, #440010, #cc0033, var(--primary), #ff6688);
+    background:linear-gradient(90deg, #440010, #cc0033, var(--primary));
     transition:width 0.15s; box-shadow:0 0 8px var(--primary);
     position:relative; overflow:hidden;
 }
 #boss-bar-fill::after {
     content:''; position:absolute; inset:0;
     background:repeating-linear-gradient(90deg,transparent,transparent 20px,rgba(255,255,255,0.05) 20px,rgba(255,255,255,0.05) 22px);
-}
-
-/* ── BUFF BAR ── */
-#buff-bar {
-    position:fixed; top:14px; left:50%; transform:translateX(-50%);
-    display:flex; gap:8px; pointer-events:none; z-index:11;
-}
-.buff-pill {
-    background:var(--panel); border:1px solid #444; padding:4px 12px;
-    font-size:11px; display:flex; gap:6px; align-items:center;
-    font-family:'Rajdhani',sans-serif; border-radius:20px;
 }

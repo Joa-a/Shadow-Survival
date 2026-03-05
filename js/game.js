@@ -22,6 +22,11 @@ const Game = {
     reviveAvailable:false, // set true when gameover screen shown (if not yet used)
 
     bossKills:0,
+    // ── Magic Survival mechanics ──
+    deathBar: 0,           // 0-100: fills over time → triggers elite wave at 100
+    deathBarTimer: 0,
+    runes: [],             // field rune pickups
+    runeSpawnTimer: 0,
     killMilestones:[25,50,100,200,500],
     nextKillMilestone:0,
     landingParticles:[],
@@ -201,6 +206,23 @@ const Game = {
         startBtn.onclick = () => this.start();
         startBtn.addEventListener('touchend', e => { e.preventDefault(); this.start(); });
 
+        // Leaderboard trigger buttons (start screen + game over)
+        const openLB = () => {
+            if (typeof Auth !== 'undefined') Auth.renderLeaderboard('lb-list');
+            document.getElementById('lb-modal').style.display = 'flex';
+        };
+        const closeLB = () => {
+            document.getElementById('lb-modal').style.display = 'none';
+        };
+        ['btn-show-lb','go-show-lb','pause-show-lb'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) { btn.onclick = openLB; btn.ontouchend = e => { e.preventDefault(); openLB(); }; }
+        });
+        ['lb-close-btn','lb-close-btn2'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) { btn.onclick = closeLB; }
+        });
+
         // Mode selector buttons
         document.querySelectorAll('.mode-btn').forEach(btn => {
             const select = () => {
@@ -328,6 +350,9 @@ const Game = {
         this.burstLevel       = 1;  this.burstCharges      = 1;  this.burstMaxCharges  = 1;
         this.burstMaxCooldown = 120; this.burstCooldown    = 0;  this.bossKills        = 0;
         this.hitstopFrames = 0; this.dmgFlash = 0;
+        this.deathBar = 0; this.deathBarTimer = 0;
+        this.runes = []; this.runeSpawnTimer = 0;
+        this._wisps = null;
         this.xpBoostTimer = 0; this.xpBoostMult = 1; this.reviveAvailable = false;
         if (typeof AdsManager !== 'undefined') AdsManager.resetSession();
         this._wireAdButtons();
@@ -337,6 +362,9 @@ const Game = {
         document.getElementById('start-screen').style.display    = 'none';
         document.getElementById('boss-hud').style.display        = 'none';
         document.getElementById('gameover-screen').style.display = 'none';
+        // Show player name in HUD
+        if (typeof Auth !== 'undefined') Auth._showLoggedIn();
+
         // Show/hide frenetic badge
         const badge = document.getElementById('frenetic-badge');
         if (badge) badge.style.display = this.gameMode === 'frenetic' ? 'block' : 'none';
@@ -450,6 +478,73 @@ const Game = {
         const icons  = { shield:'🛡', speed:'⚡', damage:'🔥' };
         const t      = types[M.randInt(0, types.length - 1)];
         this.powerUps.push({ x, y, type:t, color:colors[t], icon:icons[t], r:14, pulse:0 });
+    },
+
+    _spawnRune() {
+        const RUNE_TYPES = [
+            { id:'invincible', icon:'🔮', color:'#aa66ff', label:'INVENCIBLE', glow:'rgba(170,102,255,' },
+            { id:'magnet',     icon:'🧲', color:'#44ccff', label:'ATRACCIÓN',  glow:'rgba(68,204,255,' },
+            { id:'clear',      icon:'💥', color:'#ff4422', label:'PURGAR',     glow:'rgba(255,68,34,'  },
+            { id:'berserk',    icon:'⚡', color:'#ffdd00', label:'FRENESÍ',    glow:'rgba(255,221,0,'  },
+        ];
+        const type = RUNE_TYPES[Math.floor(Math.random() * RUNE_TYPES.length)];
+        const a = Math.random() * Math.PI * 2;
+        const d = M.rand(120, 280);
+        this.runes.push({
+            ...type,
+            x: this.player.x + Math.cos(a) * d,
+            y: this.player.y + Math.sin(a) * d,
+            r: 16, pulse: 0, life: 18,
+        });
+    },
+
+    _applyRune(rune) {
+        AudioEngine.sfxPowerup();
+        this.spawnParticle(rune.x, rune.y, rune.color, 20);
+        this.showWaveMessage(`${rune.icon} ${rune.label}`);
+        if (rune.id === 'invincible') {
+            this.player.iframe = 6;
+            this.player.activeBuffs.shield = 6;
+        } else if (rune.id === 'magnet') {
+            // Pull all gems to player instantly
+            this.gems.forEach(g => { g.x = this.player.x; g.y = this.player.y; });
+        } else if (rune.id === 'clear') {
+            // Kill 80% of non-boss enemies on screen
+            const toClear = this.enemies.filter(e => !e.isBoss);
+            const n = Math.floor(toClear.length * 0.8);
+            for (let i = 0; i < n; i++) {
+                const e = toClear[i];
+                e.dead = true;
+            }
+            this.shake = 18;
+        } else if (rune.id === 'berserk') {
+            this.player.activeBuffs.damage = 8;
+            this.player.activeBuffs.speed  = 5;
+        }
+    },
+
+    _updateDeathBarHUD() {
+        const bar = document.getElementById('death-bar-fill');
+        if (bar) {
+            bar.style.width = this.deathBar + '%';
+            bar.classList.toggle('danger', this.deathBar > 75);
+        }
+        const pct = document.getElementById('death-bar-pct');
+        if (pct) pct.textContent = Math.floor(this.deathBar) + '%';
+    },
+
+    _showRankAnnouncement(rank) {
+        const medals = {1:'🥇', 2:'🥈', 3:'🥉'};
+        const msg = rank <= 3
+            ? `${medals[rank]} ¡PUESTO #${rank} EN EL RANKING!`
+            : `🏆 RANKING #${rank}`;
+        // Show briefly on the wave indicator (already visible at game over)
+        const el = document.getElementById('wave-indicator');
+        if (el) {
+            el.textContent = msg;
+            el.style.opacity = '1';
+            el.style.color   = rank <= 3 ? '#ffd700' : '#aa88ff';
+        }
     },
 
     showWaveMessage(msg) {
@@ -755,16 +850,19 @@ const Game = {
 
         // Enemy spawn ramp — 3 phases matching difficulty curve
         const isFrenetic = this.gameMode === 'frenetic';
-        const spawnBase = this.time < 120
-            ? Math.max(1.2, 4.0 - this.time / 60)
-            : this.time < 480
-            ? Math.max(0.6, 1.8 - (this.time - 120) / 480)
-            : Math.max(0.25, 0.6 - (this.time - 480) / 600);
-        // Frenetic: 2.5× faster spawns, 30% more enemies on screen
+        // Aggressive spawn ramp — screen packed by 5-10 min
+        const spawnBase = this.time < 60
+            ? Math.max(0.5, 2.2 - this.time / 35)            // 0-1 min: quick start
+            : this.time < 180
+            ? Math.max(0.22, 0.9 - (this.time - 60) / 180)   // 1-3 min: builds fast
+            : this.time < 360
+            ? Math.max(0.12, 0.3 - (this.time - 180) / 500)  // 3-6 min: dense
+            : Math.max(0.08, 0.16 - (this.time - 360) / 900); // 6+ min: relentless
+        // Frenetic: 2.5x faster spawns
         const spawnInterval = isFrenetic ? spawnBase / 2.5 : spawnBase;
         const maxOnScreen = isFrenetic
-            ? Math.min(CONFIG.ENEMY_LIMIT, Math.floor(12 + this.time / 5))
-            : Math.min(CONFIG.ENEMY_LIMIT, Math.floor(6 + this.time / 8));
+            ? Math.min(CONFIG.ENEMY_LIMIT, Math.floor(25 + this.time / 3))
+            : Math.min(CONFIG.ENEMY_LIMIT, Math.floor(12 + this.time / 4));
         this.spawnTimer += dt;
         if (this.spawnTimer >= spawnInterval && this.enemies.filter(e => !e.isBoss).length < maxOnScreen) {
             this.spawnTimer = 0;
@@ -782,6 +880,52 @@ const Game = {
             if (isFrenetic && Math.random() < 0.4) {
                 const a2 = Math.random() * Math.PI * 2;
                 this.spawnPowerUp(this.player.x + Math.cos(a2)*d, this.player.y + Math.sin(a2)*d);
+            }
+        }
+
+        // ── DEATH BAR (Magic Survival) ──────────────────────────────
+        // Fills over time + accelerates with kills. At 100 → elite wave
+        this.deathBar += dt * (2.5 + this.time / 120);
+        if (this.kills > 0) this.deathBar += (this.kills % 5 === 0 ? 0.4 : 0);
+        if (this.deathBar >= 100) {
+            this.deathBar = 0;
+            // Spawn a burst of elite enemies
+            const burstCount = 4 + Math.floor(this.time / 60);
+            for (let b = 0; b < burstCount; b++) {
+                const angle2 = (Math.PI * 2 / burstCount) * b;
+                const dist2  = Math.max(canvas.width, canvas.height) * 0.55;
+                const ex = this.player.x + Math.cos(angle2) * dist2;
+                const ey = this.player.y + Math.sin(angle2) * dist2;
+                const t2 = this.time;
+                const pool2 = t2 < 120 ? [ENEMY_TYPES[0],ENEMY_TYPES[1]] : [ENEMY_TYPES[2],ENEMY_TYPES[3],ENEMY_TYPES[5]];
+                const data2 = pool2[Math.floor(Math.random()*pool2.length)];
+                const hm2   = 1 + (t2 < 60 ? 0 : (t2-60)/180);
+                const elite2 = new Enemy(ex, ey, {...data2, elite:true}, hm2 * 1.5);
+                if (this.gameMode === 'frenetic') { elite2.speed *= 1.35; }
+                this.enemies.push(elite2);
+            }
+            this.shake = 10;
+            this.showWaveMessage('☠ OLEADA OSCURA');
+            AudioEngine.sfxBoss && AudioEngine.sfxBoss();
+        }
+        this._updateDeathBarHUD();
+
+        // ── RUNE SPAWNS (Magic Survival) ────────────────────────────
+        this.runeSpawnTimer += dt;
+        const runeInterval = isFrenetic ? 18 : 28;
+        if (this.runeSpawnTimer >= runeInterval) {
+            this.runeSpawnTimer = 0;
+            this._spawnRune();
+        }
+        // Rune collection
+        for (let i = this.runes.length - 1; i >= 0; i--) {
+            const rune = this.runes[i];
+            rune.pulse += dt * 2.5;
+            rune.life  -= dt;
+            if (rune.life <= 0) { this.runes.splice(i, 1); continue; }
+            if (M.dist(this.player.x, this.player.y, rune.x, rune.y) < this.player.r + rune.r + 8) {
+                this._applyRune(rune);
+                this.runes.splice(i, 1);
             }
         }
 
@@ -818,7 +962,8 @@ const Game = {
                 if (this.player.activeBuffs.shield > 0) {
                     this.player.activeBuffs.shield = 0; this.shake = 5; this.player.iframe = 0.5;
                 } else {
-                    const dmg = Math.max(1, e.dmg - this.player.stats.reduction);
+                    const rawDmg = Math.max(1, e.dmg - this.player.stats.reduction);
+                    const dmg = Math.min(rawDmg, Math.ceil(this.player.maxHp * 0.28)); // no insta-kill
                     this.player.hp -= dmg; this.player.iframe = 0.65; this.shake = 7;
                     this.dmgFlash = 0.55; // synced with rAF loop — no setTimeout
                     if (this.player.hp <= 0) { this.player.hp = 0; this.gameOver(); return; }
@@ -846,23 +991,33 @@ const Game = {
             }
         }
 
-        // Enemy-enemy separation: prevent stacking on top of each other
-        // Cap at 60 enemies to avoid O(N²) cost with big hordes
-        const ec = this.enemies.length;
-        if (ec > 1) {
-            const limit = Math.min(ec, 60);
-            for (let i = 0; i < limit - 1; i++) {
-                const a = this.enemies[i];
-                for (let j = i + 1; j < limit; j++) {
-                    const b   = this.enemies[j];
-                    const dx  = a.x - b.x;
-                    const dy  = a.y - b.y;
-                    const d   = Math.sqrt(dx * dx + dy * dy) || 0.001;
-                    const min = (a.r + b.r) * 0.9;
-                    if (d < min) {
-                        const push = ((min - d) / d) * 0.5;
-                        a.x += dx * push; a.y += dy * push;
-                        b.x -= dx * push; b.y -= dy * push;
+        // Enemy-enemy separation — grid-bucketed to stay O(N) with big hordes
+        // Only compare enemies in the same or adjacent grid cells (cell = 40px)
+        const CELL = 40;
+        const sepGrid = new Map();
+        for (const e of this.enemies) {
+            const key = `${Math.floor(e.x/CELL)},${Math.floor(e.y/CELL)}`;
+            if (!sepGrid.has(key)) sepGrid.set(key, []);
+            sepGrid.get(key).push(e);
+        }
+        for (const [key, cell] of sepGrid) {
+            const [cx, cy] = key.split(',').map(Number);
+            for (let di = -1; di <= 1; di++) {
+                for (let dj = -1; dj <= 1; dj++) {
+                    const nkey = `${cx+di},${cy+dj}`;
+                    if (!sepGrid.has(nkey)) continue;
+                    const ncell = sepGrid.get(nkey);
+                    for (const a of cell) {
+                        for (const b of ncell) {
+                            if (a === b) continue;
+                            const dx = a.x - b.x, dy = a.y - b.y;
+                            const d  = Math.sqrt(dx*dx + dy*dy) || 0.001;
+                            const min = (a.r + b.r) * 0.88;
+                            if (d < min) {
+                                const push = ((min - d) / d) * 0.25;
+                                a.x += dx * push; a.y += dy * push;
+                            }
+                        }
                     }
                 }
             }
@@ -914,7 +1069,8 @@ const Game = {
             if (ep.dmg > 0 && M.dist(ep.x, ep.y, this.player.x, this.player.y) < ep.r + this.player.r && this.player.iframe <= 0) {
                 if (this.player.activeBuffs.shield > 0) { this.player.activeBuffs.shield = 0; }
                 else {
-                    const dmg = Math.max(1, ep.dmg - this.player.stats.reduction);
+                    const rawDmg2 = Math.max(1, ep.dmg - this.player.stats.reduction);
+                    const dmg = Math.min(rawDmg2, Math.ceil(this.player.maxHp * 0.28)); // no insta-kill
                     this.player.hp -= dmg; this.player.iframe = 0.5; this.shake = 5;
                     if (this.player.hp <= 0) { this.player.hp = 0; this.gameOver(); return; }
                 }
@@ -988,7 +1144,7 @@ const Game = {
     // ─────────────────────────── DRAW ────────────────────────────
     draw() {
         const ctx = this.ctx;
-        ctx.fillStyle = '#04010e'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         if (this.state === 'LOADING' || this.state === 'LANDING') return;
         if (this.state === 'START') return;
@@ -999,19 +1155,42 @@ const Game = {
 
         const off = { x: this.player.x, y: this.player.y };
 
-        // Background grid
-        const gs   = 80;
+        // Subtle hex grid (very faint, like Magic Survival floor)
+        const gs   = 60;
         const gOff = { x:((this.player.x%gs)+gs)%gs, y:((this.player.y%gs)+gs)%gs };
-        ctx.strokeStyle = 'rgba(30,15,45,0.4)'; ctx.lineWidth = 0.5;
+        ctx.strokeStyle = 'rgba(30,20,50,0.22)'; ctx.lineWidth = 0.4;
         for (let x = -gOff.x; x < canvas.width+gs; x+=gs) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
         for (let y = -gOff.y; y < canvas.height+gs; y+=gs) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
 
-        // Decorations
+        // Atmospheric wisps — floating background particles
+        if (!this._wisps) {
+            this._wisps = Array.from({length: 28}, () => ({
+                x: Math.random()*2000 - 1000, y: Math.random()*2000 - 1000,
+                r: 18 + Math.random()*40, phase: Math.random()*Math.PI*2,
+                col: ['rgba(80,0,160,', 'rgba(0,40,120,', 'rgba(60,0,100,'][Math.floor(Math.random()*3)]
+            }));
+        }
+        const wt = Date.now() * 0.0003;
+        this._wisps.forEach((w, i) => {
+            const wx = (w.x - off.x) % 1200 + canvas.width/2;
+            const wy = (w.y - off.y) % 900  + canvas.height/2;
+            const a  = 0.04 + Math.sin(wt + w.phase)*0.02;
+            ctx.globalAlpha = a;
+            ctx.fillStyle = w.col + a + ')';
+            ctx.shadowColor = w.col + '0.6)';
+            ctx.shadowBlur  = 30;
+            ctx.beginPath(); ctx.arc(wx, wy, w.r * (0.8 + Math.sin(wt*1.2 + w.phase)*0.2), 0, Math.PI*2); ctx.fill();
+        });
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+
+        // Decorations (dim, spirit-world style)
         this.decorations.forEach(d => {
             const sx = d.x-off.x+canvas.width/2, sy = d.y-off.y+canvas.height/2;
             if (sx<-50||sx>canvas.width+50||sy<-50||sy>canvas.height+50) return;
-            if (d.type==='rock') { ctx.fillStyle=`hsl(${d.hue},25%,9%)`; ctx.fillRect(sx,sy,d.size,d.size); }
-            else { ctx.fillStyle=`hsl(${d.hue},45%,14%)`; ctx.beginPath(); ctx.arc(sx,sy,d.size/2,0,Math.PI*2); ctx.fill(); }
+            ctx.globalAlpha = 0.18;
+            if (d.type==='rock') { ctx.fillStyle=`hsl(${d.hue},10%,15%)`; ctx.fillRect(sx,sy,d.size,d.size); }
+            else { ctx.fillStyle=`hsl(${d.hue},20%,18%)`; ctx.beginPath(); ctx.arc(sx,sy,d.size/2,0,Math.PI*2); ctx.fill(); }
+            ctx.globalAlpha = 1;
         });
 
         // Weapon persistent draws (flame zones, garlic, whip arc, holy strike)
@@ -1028,12 +1207,57 @@ const Game = {
             ctx.fillText(pu.icon,sx,sy); ctx.restore();
         });
 
-        // XP Gems
+        // Runes — Magic Survival style field pickups
+        this.runes.forEach(rune => {
+            const sx = rune.x - off.x + canvas.width/2;
+            const sy = rune.y - off.y + canvas.height/2;
+            if (sx < -60 || sx > canvas.width+60 || sy < -60 || sy > canvas.height+60) return;
+            const rp  = 0.6 + Math.sin(rune.pulse * 2.2) * 0.4;
+            const fadePct = Math.min(1, rune.life / 4);
+            ctx.save();
+            ctx.globalAlpha = 0.15 * rp * fadePct;
+            ctx.fillStyle = rune.color;
+            ctx.shadowColor = rune.color; ctx.shadowBlur = 30;
+            ctx.beginPath(); ctx.arc(sx, sy, rune.r * 2.5, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 0.35 * rp * fadePct;
+            ctx.shadowBlur = 18;
+            ctx.beginPath(); ctx.arc(sx, sy, rune.r * 1.6, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 0.9 * fadePct;
+            ctx.shadowBlur = 12;
+            ctx.beginPath(); ctx.arc(sx, sy, rune.r, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = fadePct;
+            ctx.shadowBlur = 0;
+            ctx.font = (rune.r * 1.1) + 'px serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(rune.icon, sx, sy);
+            ctx.fillStyle = rune.color;
+            ctx.font = '7px sans-serif';
+            ctx.fillText(rune.label, sx, sy + rune.r + 10);
+            ctx.restore();
+        });
+
+        // Mana Orbs (XP) — Magic Survival style glowing spheres
         const gt = Date.now() * 0.003;
         this.gems.forEach(g => {
-            const sx=g.x-off.x+canvas.width/2, sy=g.y-off.y+canvas.height/2+Math.sin(gt)*2;
-            ctx.save(); ctx.shadowColor='#4466ff'; ctx.shadowBlur=10; ctx.fillStyle='#3355dd';
-            ctx.beginPath(); ctx.arc(sx,sy,5,0,Math.PI*2); ctx.fill(); ctx.restore();
+            const sx = g.x-off.x+canvas.width/2, sy = g.y-off.y+canvas.height/2+Math.sin(gt + g.x*0.01)*3;
+            const orb_pulse = 0.7 + Math.sin(gt*2 + g.y*0.01)*0.3;
+            ctx.save();
+            // Outer glow
+            ctx.globalAlpha = 0.18 * orb_pulse;
+            ctx.shadowColor = '#88aaff'; ctx.shadowBlur = 14;
+            ctx.fillStyle = '#3355cc';
+            ctx.beginPath(); ctx.arc(sx, sy, 9, 0, Math.PI*2); ctx.fill();
+            // Core orb
+            ctx.globalAlpha = 0.9;
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = '#6688ff';
+            ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI*2); ctx.fill();
+            // Highlight
+            ctx.globalAlpha = 0.7;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ccddff';
+            ctx.beginPath(); ctx.arc(sx-1.5, sy-1.5, 1.8, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
         });
 
         // Enemy projectiles
@@ -1150,6 +1374,17 @@ const Game = {
             <div class="stat-row"><span>Logros totales:</span><span>${AchievementStore.getCount()}/${AchievementStore.getTotalCount()}</span></div>
             <div class="stat-row go-ach-row"><span>Esta partida:</span><div class="go-ach-list">${newHTML}</div></div>
         `;
+        // Submit score to leaderboard
+        if (typeof Auth !== 'undefined' && Auth.currentUser) {
+            const rank = Auth.submitScore({
+                timeSec:  this.time,
+                kills:    this.kills,
+                level:    this.player.level,
+                mode:     this.gameMode,
+            });
+            if (rank) this._showRankAnnouncement(rank);
+        }
+
         setTimeout(() => {
             document.getElementById('gameover-screen').style.display = 'flex';
             // Wire revive button (only if not already used this session)
@@ -1180,4 +1415,9 @@ const Game = {
     }
 };
 
-Game.init();
+// Boot — show login first, then game init
+if (typeof Auth !== 'undefined') {
+    Auth.init();
+} else {
+    Game.init();
+}

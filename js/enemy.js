@@ -10,7 +10,8 @@ class Enemy extends Entity {
         const speedScale = 1 + Math.log(Math.max(diffMult, 1)) * 0.6;
         this.speed       = data.speed * (0.88 + Math.random() * 0.24) * speedScale;
         this.baseSpeed   = this.speed;
-        this.dmg         = data.dmg * diffMult;
+        // dmg scales with difficulty but capped logarithmically to prevent insta-kills
+        this.dmg         = data.dmg * (1 + Math.log(Math.max(diffMult, 1)) * 0.55);
         this.xpValue     = data.xp;
         this.behaviorTimer = 0;
         this.swingAngle  = 0;
@@ -124,14 +125,14 @@ class Enemy extends Entity {
                 const N = 16;
                 for (let i=0;i<N;i++) {
                     const a = (Math.PI*2/N)*i;
-                    Game.enemyProjectiles.push({x:this.x,y:this.y,vx:Math.cos(a)*3,vy:Math.sin(a)*3,r:9,dmg:14,life:280,color:'#ff1144'});
+                    Game.enemyProjectiles.push({x:this.x,y:this.y,vx:Math.cos(a)*3,vy:Math.sin(a)*3,r:9,dmg:9,life:280,color:'#ff1144'});
                 }
                 Game.shake = 14;
             } else {
                 // Spiral burst
                 for (let i=0;i<8;i++) {
                     const a = (Math.PI*2/8)*i + this.angle;
-                    Game.enemyProjectiles.push({x:this.x,y:this.y,vx:Math.cos(a)*4.5,vy:Math.sin(a)*4.5,r:7,dmg:10,life:200,color:'#ff8800'});
+                    Game.enemyProjectiles.push({x:this.x,y:this.y,vx:Math.cos(a)*4.5,vy:Math.sin(a)*4.5,r:7,dmg:7,life:200,color:'#ff8800'});
                 }
             }
         }
@@ -143,23 +144,46 @@ class Enemy extends Entity {
         if (sx < -80 || sx > canvas.width+80 || sy < -80 || sy > canvas.height+80) return;
 
         ctx.save();
+        const t   = Date.now() * 0.001;
         const col = this.flash > 0 ? '#ffffff' : this.color;
-        ctx.fillStyle   = col;
-        ctx.shadowColor = this.isBoss ? '#ff0033' : (this.elite ? '#ffaa00' : this.color);
-        ctx.shadowBlur  = CONFIG.IS_MOBILE ? 6 : (this.isBoss ? 24 : (this.elite ? 16 : 10));
+        const glowColor = this.isBoss ? '#ff2244' : (this.elite ? '#ffcc44' : this.color);
+        const pulse = 0.7 + Math.sin(t * 2 + this.x * 0.01) * 0.3;
 
+        // Outer aura ring
+        ctx.globalAlpha = 0.12 * pulse;
+        ctx.fillStyle = glowColor;
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = CONFIG.IS_MOBILE ? 10 : 22;
+        ctx.beginPath(); ctx.arc(sx, sy, this.r * 2.2, 0, Math.PI*2); ctx.fill();
+
+        // Mid glow ring
+        ctx.globalAlpha = 0.25 * pulse;
+        ctx.shadowBlur = CONFIG.IS_MOBILE ? 8 : 16;
+        ctx.beginPath(); ctx.arc(sx, sy, this.r * 1.55, 0, Math.PI*2); ctx.fill();
+
+        // Core body — translucent spirit
+        ctx.globalAlpha = this.type === 'phantom' ? 0.55 + Math.sin(t * 3)*0.2 : 0.82;
+        ctx.shadowBlur  = CONFIG.IS_MOBILE ? 6 : 12;
+        ctx.fillStyle   = col;
         ctx.beginPath();
         if (this.type === 'charger' || this.elite) {
-            this._drawStar(ctx, sx, sy, 5, this.r, this.r*0.42);
+            this._drawStar(ctx, sx, sy, 5, this.r, this.r * 0.42);
         } else if (this.type === 'exploder') {
-            ctx.rect(sx-this.r, sy-this.r, this.r*2, this.r*2);
-        } else if (this.type === 'phantom') {
-            ctx.globalAlpha = 0.7 + Math.sin(Date.now()*0.005)*0.2;
-            ctx.arc(sx, sy, this.r, 0, Math.PI*2);
+            // Pulsing square spirit
+            const rot = t * 0.8;
+            ctx.save(); ctx.translate(sx, sy); ctx.rotate(rot);
+            ctx.rect(-this.r, -this.r, this.r*2, this.r*2);
+            ctx.restore();
         } else {
             ctx.arc(sx, sy, this.r, 0, Math.PI*2);
         }
         ctx.fill();
+
+        // Inner bright core dot
+        ctx.globalAlpha = 0.9;
+        ctx.shadowBlur  = 0;
+        ctx.fillStyle   = '#ffffff';
+        ctx.beginPath(); ctx.arc(sx, sy, this.r * 0.28, 0, Math.PI*2); ctx.fill();
 
         // Boss rings
         if (this.isBoss) {
@@ -204,7 +228,8 @@ class Enemy extends Entity {
             }
         });
         if (M.dist(this.x,this.y,Game.player.x,Game.player.y)<R && Game.player.iframe<=0) {
-            Game.player.hp -= 22; Game.player.iframe = 0.5; Game.shake = 12;
+            const expDmg = Math.min(22, Math.ceil(Game.player.maxHp * 0.28));
+            Game.player.hp -= expDmg; Game.player.iframe = 0.5; Game.shake = 12;
         }
         Game.spawnParticle(this.x, this.y, '#00ff88', 20);
         for (let i=0;i<10;i++) {
