@@ -147,7 +147,7 @@ const Intro = {
 
         // Title
         ctx.save();
-        ctx.font        = `900 ${clamp(24, 4, 44)}px 'Orbitron', sans-serif`;
+        ctx.font        = `900 ${clamp(24, 20, 44)}px 'Orbitron', sans-serif`;
         ctx.textAlign   = 'center';
         ctx.textBaseline= 'middle';
         ctx.fillStyle   = '#ff2255';
@@ -156,7 +156,7 @@ const Intro = {
         ctx.fillText('SHADOW SURVIVOR', cx, logoY + 16);
         ctx.shadowBlur  = 0;
         ctx.fillStyle   = 'rgba(255,255,255,0.12)';
-        ctx.font        = `${clamp(9, 1.5, 13)}px 'Orbitron', sans-serif`;
+        ctx.font        = `${clamp(9, 8, 13)}px 'Orbitron', sans-serif`;
         ctx.letterSpacing = '6px';
         ctx.fillText('ETERNAL NIGHT EDITION', cx, logoY + 46);
         ctx.restore();
@@ -198,7 +198,7 @@ const Intro = {
 
         // Percent
         ctx.save();
-        ctx.font        = `${clamp(10, 1.5, 12)}px 'Orbitron', sans-serif`;
+        ctx.font        = `${clamp(10, 9, 12)}px 'Orbitron', sans-serif`;
         ctx.textAlign   = 'right';
         ctx.textBaseline= 'middle';
         ctx.fillStyle   = 'rgba(255,34,85,0.7)';
@@ -208,7 +208,7 @@ const Intro = {
         // Step label
         const stepLabel = this._loadSteps[this._loadCurrentStep]?.label || '';
         ctx.save();
-        ctx.font        = `${clamp(9, 1.4, 11)}px 'Orbitron', sans-serif`;
+        ctx.font        = `${clamp(9, 8, 11)}px 'Orbitron', sans-serif`;
         ctx.textAlign   = 'left';
         ctx.textBaseline= 'middle';
         ctx.globalAlpha = 0.5;
@@ -498,7 +498,7 @@ const Intro = {
 
         // ── GAME TITLE ──
         const titleY   = H * 0.62;
-        const titleSize = clamp(28, 5, 56);
+        const titleSize = clamp(28, 22, 56);
         const glowAlpha = 0.6 + Math.sin(t * 1.2) * 0.4;
 
         ctx.save();
@@ -524,13 +524,13 @@ const Intro = {
         ctx.shadowBlur  = 0;
         ctx.globalAlpha = 0.55;
         ctx.fillStyle   = '#cc4466';
-        ctx.font        = `${clamp(9, 1.2, 12)}px 'Orbitron', sans-serif`;
+        ctx.font        = `${clamp(9, 8, 12)}px 'Orbitron', sans-serif`;
         ctx.fillText('ETERNAL NIGHT EDITION', cx, titleY + titleSize * 0.9);
         ctx.restore();
 
         // ── TYPEWRITER LORE ──
         const loreY     = titleY + titleSize * 1.5 + 18;
-        const loreSize  = clamp(10, 1.4, 14);
+        const loreSize  = clamp(10, 9, 14);
         const lines     = this._titleTyped.split('\n');
 
         ctx.save();
@@ -566,7 +566,7 @@ const Intro = {
             ctx.textAlign   = 'center';
             ctx.textBaseline= 'middle';
             ctx.globalAlpha = blink * this._titleEnterAlpha;
-            ctx.font        = `${clamp(10, 1.3, 13)}px 'Orbitron', sans-serif`;
+            ctx.font        = `${clamp(10, 9, 13)}px 'Orbitron', sans-serif`;
             ctx.fillStyle   = '#ff2255';
             ctx.shadowColor = '#ff2255';
             ctx.shadowBlur  = 10;
@@ -621,7 +621,11 @@ const Intro = {
     },
 };
 
-// Helper — scale a pixel value relative to 1280px reference width
+// Helper — scale pixel value, mobile-aware
+// On mobile (<= 600px) uses 430px as reference so text is readable
 function clamp(val, vmin, vmax) {
-    return Math.max(vmin, Math.min(vmax, val * (window.innerWidth / 1280)));
+    const W   = window.innerWidth;
+    const ref = W <= 600 ? 430 : 1280;
+    const scale = Math.max(0.9, W / ref);  // never below 90% of base size
+    return Math.max(vmin, Math.min(vmax, val * scale));
 }
