@@ -538,12 +538,18 @@ const Game = {
         const msg = rank <= 3
             ? `${medals[rank]} ¡PUESTO #${rank} EN EL RANKING!`
             : `🏆 RANKING #${rank}`;
-        // Show briefly on the wave indicator (already visible at game over)
         const el = document.getElementById('wave-indicator');
         if (el) {
-            el.textContent = msg;
-            el.style.opacity = '1';
-            el.style.color   = rank <= 3 ? '#ffd700' : '#aa88ff';
+            el.textContent       = msg;
+            el.style.transition  = 'opacity 0s';
+            el.style.opacity     = '1';
+            el.style.color       = rank <= 3 ? '#ffd700' : '#aa88ff';
+            // Fade out after 4 seconds
+            setTimeout(() => {
+                el.style.transition = 'opacity 0.8s';
+                el.style.opacity    = '0';
+                el.style.color      = '';
+            }, 4000);
         }
     },
 
@@ -1349,7 +1355,7 @@ const Game = {
     },
 
     // ─────────────────────────── GAME OVER ───────────────────────
-    gameOver() {
+    async gameOver() {
         if (this.state === 'GAMEOVER') return;
         this.state = 'GAMEOVER';
         const m = Math.floor(this.time/60), s = Math.floor(this.time%60);
@@ -1374,15 +1380,19 @@ const Game = {
             <div class="stat-row"><span>Logros totales:</span><span>${AchievementStore.getCount()}/${AchievementStore.getTotalCount()}</span></div>
             <div class="stat-row go-ach-row"><span>Esta partida:</span><div class="go-ach-list">${newHTML}</div></div>
         `;
-        // Submit score to leaderboard
+        // Submit score to leaderboard — await because submitScore is async
         if (typeof Auth !== 'undefined' && Auth.currentUser) {
-            const rank = Auth.submitScore({
-                timeSec:  this.time,
-                kills:    this.kills,
-                level:    this.player.level,
-                mode:     this.gameMode,
-            });
-            if (rank) this._showRankAnnouncement(rank);
+            try {
+                const rank = await Auth.submitScore({
+                    timeSec:  this.time,
+                    kills:    this.kills,
+                    level:    this.player.level,
+                    mode:     this.gameMode || 'normal',
+                });
+                if (rank) this._showRankAnnouncement(rank);
+            } catch(e) {
+                console.warn('submitScore error:', e);
+            }
         }
 
         setTimeout(() => {
