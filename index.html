@@ -66,7 +66,7 @@
 
 <!-- HUD -->
 <div id="hud">
-    <div class="xp-container" style="position:relative"><div id="xp-fill"></div><div id="xp-boost-bar"><div id="xp-boost-fill" style="width:0%"></div></div></div>
+    <div class="xp-container"><div id="xp-fill"></div></div>
     <div id="xp-label">XP</div>
     <!-- Death Bar — Magic Survival intensity meter -->
     <div id="death-bar-wrap">
@@ -83,10 +83,7 @@
         <div style="font-size:8px;color:var(--primary);letter-spacing:3px;font-family:'Orbitron',sans-serif">COMBO</div>
         <div id="txt-combo" class="value" style="font-size:24px">x1</div>
     </div>
-    <button class="btn-ad btn-ad-hud" id="btn-ad-xp" title="Ver anuncio: +25% XP por 60s">
-    &#9889; XP <span class="ad-badge">AD</span>
-</button>
-<div id="boss-hud">
+    <div id="boss-hud">
         <div id="boss-name">&#9888; JEFE &#9888;</div>
         <div id="boss-bar-bg"><div id="boss-bar-fill"></div></div>
     </div>
@@ -134,9 +131,6 @@
         <button class="mode-btn" id="mode-frenetic" data-mode="frenetic">&#9889; FRENÉTICO</button>
     </div>
     <button class="btn-secondary lb-trigger-btn" id="btn-show-lb">🏆 &nbsp; RANKING</button>
-    <button class="btn-ad" id="btn-ad-chest" title="Ver anuncio para empezar con un upgrade">
-        &#127381; COFRE BONUS &nbsp;<span class="ad-badge">AD</span>
-    </button>
     <div style="margin-top:14px;font-size:10px;color:#332233;letter-spacing:2px;font-family:'Orbitron',sans-serif">WASD / FLECHAS &middot; ESPACIO: ULTRA</div>
 </div>
 
@@ -145,9 +139,6 @@
     <div style="font-family:'Orbitron',sans-serif;color:var(--accent);margin-bottom:6px;font-size:clamp(11px,3vw,14px);letter-spacing:5px;text-shadow:0 0 20px var(--accent)">&#11014; SUBISTE DE NIVEL</div>
     <div id="txt-levelup-num" style="font-family:'Orbitron',sans-serif;color:#554466;font-size:11px;margin-bottom:20px;letter-spacing:3px">ELIGE UNA MEJORA</div>
     <div class="upgrade-container" id="upgrade-options"></div>
-    <button class="btn-ad btn-ad-small" id="btn-ad-reroll" style="margin-top:14px">
-        &#127922; RE-ROLL &nbsp;<span class="ad-badge">AD</span>
-    </button>
 </div>
 
 <!-- PAUSE -->
@@ -173,25 +164,7 @@
     <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px">
         <button class="btn-main" onclick="location.reload()">&#9876; REINTENTAR</button>
         <button class="btn-secondary lb-trigger-btn" id="go-show-lb">🏆 RANKING</button>
-        <button class="btn-ad" id="btn-ad-revive">
-            &#128128; REVIVIR &nbsp;<span class="ad-badge">AD</span>
-        </button>
     </div>
-</div>
-
-<!-- AD OVERLAY — simulates fullscreen rewarded ad -->
-<div id="ad-overlay" style="display:none;position:fixed;inset:0;background:#000;z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:20px">
-    <div style="color:#888;font-size:10px;letter-spacing:3px;font-family:'Orbitron',sans-serif">ANUNCIO PATROCINADO</div>
-    <!-- In production: AdMob renders its own native ad here -->
-    <div style="width:90%;max-width:320px;height:200px;background:#111;border:1px solid #222;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#333;font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px">
-        [ ESPACIO PARA ANUNCIO ]
-    </div>
-    <div id="ad-reward-label" style="color:#ff2255;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;text-align:center;padding:0 20px"></div>
-    <!-- Progress bar (tracks watch time) -->
-    <div style="width:80%;max-width:280px;height:3px;background:#111;border-radius:2px;overflow:hidden">
-        <div id="ad-progress-bar" style="height:100%;width:0%;background:#ff2255;transition:width 0.1s linear;border-radius:2px"></div>
-    </div>
-    <button id="ad-skip-btn" onclick="AdsManager._cancelAd()" style="display:none;background:none;border:1px solid #333;color:#666;font-size:10px;padding:7px 20px;border-radius:14px;font-family:'Orbitron',sans-serif;letter-spacing:2px;cursor:pointer">✕ CERRAR</button>
 </div>
 
 <script src="js/auth.js"></script>
@@ -204,7 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (input) input.onkeydown = e => { if (e.key === 'Enter') Auth.login(input.value); };
 });
 </script>
-<script src="js/ads.js"></script>
 <script src="js/config.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/utils.js"></script>

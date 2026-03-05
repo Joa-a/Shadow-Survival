@@ -384,64 +384,6 @@ canvas { display:block; touch-action:none; }
     white-space: nowrap;
 }
 
-/* ── Rewarded Ad Buttons ────────────────────────────────────── */
-.btn-ad {
-    background: none;
-    border: 1px solid #ff8800;
-    color: #ff8800;
-    font-family: 'Orbitron', sans-serif;
-    font-size: 11px;
-    letter-spacing: 2px;
-    padding: 9px 22px;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: box-shadow 0.15s, color 0.15s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0 auto;
-}
-.btn-ad:hover, .btn-ad:active {
-    box-shadow: 0 0 12px rgba(255,136,0,0.4);
-    color: #ffaa33;
-    border-color: #ffaa33;
-}
-.btn-ad:disabled {
-    opacity: 0.28;
-    cursor: default;
-    pointer-events: none;
-}
-.btn-ad-small {
-    font-size: 10px;
-    padding: 7px 16px;
-}
-/* .btn-ad-hud — defined in hud.css ZONA F */
-.ad-badge {
-    background: #ff8800;
-    color: #000;
-    font-size: 8px;
-    padding: 1px 5px;
-    border-radius: 4px;
-    letter-spacing: 1px;
-    font-weight: 900;
-}
-
-/* ── XP Boost active indicator ─────────────────────────────── */
-#xp-boost-bar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: rgba(255,230,0,0.15);
-    pointer-events: none;
-}
-#xp-boost-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #ffdd00, #ffaa00);
-    box-shadow: 0 0 6px #ffdd00;
-    transition: width 0.25s linear;
-}
 
 /* ── Mode selector (Normal / Frenético) ── */
 #mode-selector {

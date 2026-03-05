@@ -17,9 +17,6 @@ const Game = {
     selectedChar:null, lastTime_loop:0,
     burstLevel:1, burstCharges:1, burstMaxCharges:1, burstMaxCooldown:120, burstCooldown:0,
     hitstopFrames:0, dmgFlash:0,
-    xpBoostTimer:0,        // seconds remaining on XP boost (ad reward)
-    xpBoostMult:1,         // 1.0 normal | 1.25 during boost
-    reviveAvailable:false, // set true when gameover screen shown (if not yet used)
 
     bossKills:0,
     // ── Magic Survival mechanics ──
@@ -116,94 +113,6 @@ const Game = {
         });
         this.selectedChar = CHARACTERS[0];
         grid.children[0].classList.add('selected');
-    },
-
-    // ── Wire all rewarded ad buttons ─────────────────────────────
-    _wireAdButtons() {
-        // Chest button (start screen)
-        const chestBtn = document.getElementById('btn-ad-chest');
-        if (chestBtn) {
-            chestBtn.onclick = () => {
-                AdsManager.request('starter_chest', () => this._grantStarterChest());
-            };
-        }
-
-        // Re-roll button (level up screen)
-        const rerollBtn = document.getElementById('btn-ad-reroll');
-        if (rerollBtn) {
-            rerollBtn.onclick = () => {
-                if (!AdsManager.canClaim('reroll')) return;
-                AdsManager.request('reroll', () => {
-                    // Re-generate the upgrade pool
-                    this.triggerLevelUp();
-                });
-            };
-        }
-
-        // Revive button (gameover screen — wired dynamically in gameOver())
-        // XP boost button (HUD)
-        const xpBtn = document.getElementById('btn-ad-xp');
-        if (xpBtn) {
-            xpBtn.onclick = () => {
-                if (!AdsManager.canClaim('xp_boost')) {
-                    xpBtn.disabled = true; return;
-                }
-                AdsManager.request('xp_boost', () => {
-                    this.xpBoostTimer = 60;
-                    this.xpBoostMult  = 1.25;
-                    this.showWaveMessage('⚡ XP +25% durante 60s');
-                    xpBtn.disabled = true;
-                });
-            };
-        }
-    },
-
-    // ── Starter Chest reward ──────────────────────────────────────
-    _grantStarterChest() {
-        // Give one random upgrade (weighted toward weapons)
-        const allKeys = Object.keys(UPGRADES_DB).filter(k => !UPGRADES_DB[k].evolved);
-        const unowned = allKeys.filter(k =>
-            UPGRADES_DB[k].type === 'weapon' && !this.player.weapons.find(w => w.id === k));
-        const stats   = allKeys.filter(k => UPGRADES_DB[k].type === 'stat');
-        // 70% chance weapon, 30% stat
-        const pool    = Math.random() < 0.7 && unowned.length ? unowned : stats;
-        const key     = pool[Math.floor(Math.random() * pool.length)];
-        if (!key) return;
-        const up = UPGRADES_DB[key];
-        if (up.type === 'weapon') this.player.addWeapon(key);
-        else this.player.applyStatUpgrade(key);
-        this.updateWeaponBar?.();
-        // Show what was granted
-        this.showWaveMessage(`🎁 ${up.icon} ${up.name}`);
-        AudioEngine.sfxLevel();
-        // Disable button since it's 'once'
-        const btn = document.getElementById('btn-ad-chest');
-        if (btn) btn.disabled = true;
-    },
-
-    // ── Revive reward ─────────────────────────────────────────────
-    _grantRevive() {
-        const go = document.getElementById('gameover-screen');
-        if (go) go.style.display = 'none';
-        this.state      = 'PLAY';
-        this.player.hp  = Math.floor(this.player.maxHp * 0.3);
-        this.player.iframe = 3.0;  // brief invincibility after revive
-        this.dmgFlash   = 0;
-        this.shake      = 8;
-        // Push nearby enemies back
-        for (const e of this.enemies) {
-            const d = M.dist(e.x, e.y, this.player.x, this.player.y);
-            if (d < 200) {
-                const nd = M.norm(e.x - this.player.x, e.y - this.player.y);
-                e.knockback.x += nd.x * 600;
-                e.knockback.y += nd.y * 600;
-            }
-        }
-        this.showWaveMessage('💀 REVIVISTE — 3s invencible');
-        AudioEngine.sfxLevel();
-        // Disable revive button
-        const btn = document.getElementById('btn-ad-revive');
-        if (btn) btn.disabled = true;
     },
 
     initControls() {
@@ -360,9 +269,6 @@ const Game = {
         this.deathBar = 0; this.deathBarTimer = 0;
         this.runes = []; this.runeSpawnTimer = 0;
         this._wisps = null;
-        this.xpBoostTimer = 0; this.xpBoostMult = 1; this.reviveAvailable = false;
-        if (typeof AdsManager !== 'undefined') AdsManager.resetSession();
-        this._wireAdButtons();
         this.nextKillMilestone = 0;
         this._updateBurstUI();
         this.state = 'PLAY';
@@ -1118,7 +1024,7 @@ const Game = {
             const d = M.dist(this.player.x, this.player.y, g.x, g.y);
             if (d < pickupRange) { g.x=M.lerp(g.x,this.player.x,dt*gemPullSpeed); g.y=M.lerp(g.y,this.player.y,dt*gemPullSpeed); }
             if (d < 16) {
-                const xpGain = g.xp * (1 + this.combo * 0.015) * this.xpBoostMult * (this.gameMode === 'frenetic' ? 1.3 : 1);
+                const xpGain = g.xp * (1 + this.combo * 0.015) * (this.gameMode === 'frenetic' ? 1.3 : 1);
                 this.player.xp += xpGain;
                 this.player.xp += xpGain;
                 while (this.player.xp >= this.player.nextXp) {
@@ -1133,18 +1039,6 @@ const Game = {
                 }
                 this.gems.splice(i, 1);
             }
-        }
-
-        // XP Boost timer decay
-        if (this.xpBoostTimer > 0) {
-            this.xpBoostTimer -= dt;
-            if (this.xpBoostTimer <= 0) {
-                this.xpBoostTimer = 0; this.xpBoostMult = 1;
-                this.showWaveMessage('⚡ XP boost terminó');
-            }
-            // Update boost bar in HUD
-            const fill = document.getElementById('xp-boost-fill');
-            if (fill) fill.style.width = Math.max(0, (this.xpBoostTimer / 60) * 100) + '%';
         }
 
         // Particles
@@ -1420,18 +1314,7 @@ const Game = {
             }
         }
 
-        setTimeout(() => {
-            document.getElementById('gameover-screen').style.display = 'flex';
-            // Wire revive button (only if not already used this session)
-            const reviveBtn = document.getElementById('btn-ad-revive');
-            if (reviveBtn) {
-                const canRevive = typeof AdsManager !== 'undefined' && AdsManager.canClaim('revive');
-                reviveBtn.disabled = !canRevive;
-                reviveBtn.onclick  = () => {
-                    AdsManager.request('revive', () => this._grantRevive());
-                };
-            }
-        }, 500);
+        setTimeout(() => document.getElementById('gameover-screen').style.display = 'flex', 500);
     },
 
     // ─────────────────────────── MAIN LOOP ───────────────────────

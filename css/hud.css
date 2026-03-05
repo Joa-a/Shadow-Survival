@@ -5,7 +5,7 @@
  *  ZONA C  y = safe+14 – +58   .top-bar stats (left) | pause-btn (right)
  *  ZONA D  y = safe+22px       buff-bar (center)
  *  ZONA E  y = safe+64 – +144  frenetic-badge (left) | minimap 80×80 (right)
- *  ZONA F  y = safe+150 – +190 combo-badge (left) | btn-ad-hud (right)
+ *  ZONA F  y = safe+150 – +190 combo-badge (left)
  *  ZONA G  y = safe+50 center  boss-hud (solo cuando activo)
  *  BOTTOM  y = bottom-safe     hp-bar
  *
@@ -187,19 +187,6 @@
     50%      { box-shadow: 0 0 18px rgba(170,68,255,0.8), 0 0 32px rgba(170,68,255,0.3); }
 }
 
-/* ── ZONA F right: btn-ad-hud (below minimap) ── */
-.btn-ad-hud {
-    position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 152px);
-    right: 16px;
-    font-size: clamp(8px,2vw,10px);
-    padding: clamp(5px,1.4vw,7px) clamp(9px,2.2vw,13px);
-    border-radius: 12px;
-    z-index: 20;
-    pointer-events: auto;
-    min-height: 34px;
-}
-
 /* ── ZONA F left: COMBO BADGE ── */
 #combo-badge {
     position: fixed;
@@ -210,6 +197,10 @@
     display:none; flex-direction:column; align-items:flex-start;
     box-shadow:0 0 18px var(--glow-red);
     z-index: 20;
+}
+/* Shrink combo on very small screens so it doesn't overlap joystick */
+@media (max-height: 680px) {
+    #combo-badge { top: calc(env(safe-area-inset-top, 0px) + 110px); }
 }
 
 /* ── ZONA G center: BOSS HUD ── */
