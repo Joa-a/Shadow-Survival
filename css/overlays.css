@@ -10,9 +10,13 @@
 #start-screen {
     display:none; /* shown by Intro after title screen */
     overflow-y:auto; -webkit-overflow-scrolling:touch;
-    padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
     justify-content: flex-start;
+    align-items: center;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+    padding-left: 16px;
+    padding-right: 16px;
+    gap: 10px;
 }
 #start-screen::before {
     content:''; position:absolute; inset:0;
@@ -131,6 +135,33 @@
     cursor:pointer; letter-spacing:2px; border-radius:3px; transition:all 0.2s;
 }
 .btn-secondary:hover { color:white; border-color:#664466; }
+
+
+/* Game over screen — scrollable so buttons are reachable with many achievements */
+#gameover-screen {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 32px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+    padding-left: 16px;
+    padding-right: 16px;
+    gap: 0;
+}
+/* Sticky buttons at bottom so they're always reachable */
+.gameover-btns {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    padding-bottom: 8px;
+    position: sticky;
+    bottom: 0;
+    background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.95) 30%);
+    padding-top: 20px;
+    width: 100%;
+}
 
 /* Game over */
 #game-over-stats {
