@@ -202,3 +202,29 @@
     background: transparent; border: none; cursor: pointer;
     width: 100%; height: 100%;
 }
+
+/* ── Upgrade bonus pills ─────────────────────────────────────── */
+.upgrade-bonus-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+}
+.upgrade-bonus-pill {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(10px, 2.8vw, 12px);
+    font-weight: 700;
+    color: #00ffcc;
+    background: rgba(0, 255, 180, 0.08);
+    border: 1px solid rgba(0, 255, 180, 0.25);
+    border-radius: 20px;
+    padding: 2px 9px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+/* Weapons show blue pills, stats show gold pills */
+.badge-weapon ~ .upgrade-info .upgrade-bonus-pill {
+    color: #88ccff;
+    background: rgba(100, 180, 255, 0.08);
+    border-color: rgba(100, 180, 255, 0.25);
+}

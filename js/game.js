@@ -573,7 +573,11 @@ const Game = {
             const badge  = up.type === 'weapon'
                 ? `<span class="upgrade-type-badge badge-weapon">${isOwned ? 'MEJORAR' : 'NUEVA'}</span>`
                 : `<span class="upgrade-type-badge badge-stat">STAT</span>`;
-            div.innerHTML = `${badge}<div class="upgrade-icon">${up.icon}</div><div class="upgrade-info"><h4>${up.name}${isOwned?' +':''}</h4><p>${up.desc}</p></div>`;
+            // Build bonus pills — show what this upgrade actually improves
+            const bonusPills = (up.bonus || [])
+                .map(b => `<span class="upgrade-bonus-pill">${b}</span>`)
+                .join('');
+            div.innerHTML = `${badge}<div class="upgrade-icon">${up.icon}</div><div class="upgrade-info"><h4>${up.name}${isOwned?' +':''}</h4><p>${up.desc}</p>${bonusPills ? `<div class="upgrade-bonus-row">${bonusPills}</div>` : ''}</div>`;
             const apply = () => {
                 if (up.type === 'weapon') this.player.addWeapon(k);
                 else this.player.applyStatUpgrade(k);

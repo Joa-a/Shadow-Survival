@@ -43,22 +43,22 @@ const CHARACTERS = [
 
 // ═══ UPGRADES ═══
 const UPGRADES_DB = {
-    'Whip':       { name:'L\u00e1tigo',       icon:'\u3030\uFE0F', desc:'Arco de ataque en direcci\u00f3n del jugador. Aumenta radio al subir.', type:'weapon' },
-    'MagicWand':  { name:'Varita',       icon:'\ud83e\ude84', desc:'Proyectil al enemigo m\u00e1s cercano. Multi-objetivo al subir.',    type:'weapon' },
-    'Knife':      { name:'Cuchillo',     icon:'\ud83d\udd2a', desc:'Cuchillo real como proyectil. M\u00e1s cuchillos al subir.',       type:'weapon' },
-    'Bible':      { name:'Orbe Sagrado', icon:'\ud83d\udcd6', desc:'Orbe orbital con cruz dorada. Hasta 3 orbes al m\u00e1x.',           type:'weapon' },
-    'Garlic':     { name:'Aura',         icon:'\ud83e\uddc4', desc:'Da\u00f1o constante cerca del jugador.',                            type:'weapon' },
-    'HolyStrike': { name:'Golpe Santo',  icon:'\ud83d\udcab', desc:'Cono de luz divina cuerpo a cuerpo. Solo corto alcance.',          type:'weapon' },
-    'Lightning':  { name:'Rayo',         icon:'\u26a1', desc:'Cadena el\u00e9ctrica limitada a 350px. Salta entre enemigos.',            type:'weapon' },
-    'CrossBow':   { name:'Ballesta',     icon:'\ud83c\udff9', desc:'Flecha penetrante con rango definido. No viaja al infinito.',       type:'weapon' },
-    'Flame':      { name:'Llama',        icon:'\ud83d\udd25', desc:'Zona de fuego persistente con efectos de llama.',                  type:'weapon' },
-    'Boots':      { name:'Botas',        icon:'\ud83d\udc9f', desc:'Velocidad de movimiento +15%.',                                    type:'stat'   },
-    'Spinach':    { name:'Espinaca',     icon:'\ud83e\udd6c', desc:'Da\u00f1o total +22%.',                                            type:'stat'   },
-    'Armor':      { name:'Armadura',     icon:'\ud83d\udee1\uFE0F', desc:'Reduce da\u00f1o recibido en 3.',                             type:'stat'   },
-    'Magnet':     { name:'Im\u00e1n',    icon:'\ud83e\uddf2', desc:'Radio de recogida de gemas +35%.',                                type:'stat'   },
-    'Regen':      { name:'Regen',        icon:'\ud83d\udc9a', desc:'Regenera 0.4 HP/segundo.',                                         type:'stat'   },
-    'Ultra':      { name:'Ultra+',       icon:'\ud83c\udf00', desc:'+1 carga, -15s recarga, +potencia.',                              type:'stat'   },
-    'Vampire':    { name:'Vampiro',      icon:'\ud83e\dddb', desc:'Roba 1 HP por cada 5 kills.',                                       type:'stat'   },
+    'Whip':       { name:'L\u00e1tigo',       icon:'\u3030\uFE0F', desc:'Arco de ataque en direcci\u00f3n del jugador. Aumenta radio al subir.', type:'weapon', bonus:["+radio de ataque", "+daño"] },
+    'MagicWand':  { name:'Varita',       icon:'\ud83e\ude84', desc:'Proyectil al enemigo m\u00e1s cercano. Multi-objetivo al subir.',    type:'weapon', bonus:["+objetivos simultáneos", "+daño"] },
+    'Knife':      { name:'Cuchillo',     icon:'\ud83d\udd2a', desc:'Cuchillo real como proyectil. M\u00e1s cuchillos al subir.',       type:'weapon', bonus:["+cuchillos lanzados", "+velocidad proyectil"] },
+    'Bible':      { name:'Orbe Sagrado', icon:'\ud83d\udcd6', desc:'Orbe orbital con cruz dorada. Hasta 3 orbes al m\u00e1x.',           type:'weapon', bonus:["+orbes orbitales", "+daño"] },
+    'Garlic':     { name:'Aura',         icon:'\ud83e\uddc4', desc:'Da\u00f1o constante cerca del jugador.',                            type:'weapon', bonus:["+radio del aura", "+daño/segundo"] },
+    'HolyStrike': { name:'Golpe Santo',  icon:'\ud83d\udcab', desc:'Cono de luz divina cuerpo a cuerpo. Solo corto alcance.',          type:'weapon', bonus:["+daño del cono", "+ángulo de ataque"] },
+    'Lightning':  { name:'Rayo',         icon:'\u26a1', desc:'Cadena el\u00e9ctrica limitada a 350px. Salta entre enemigos.',            type:'weapon', bonus:["+cadenas de rayo", "+daño"] },
+    'CrossBow':   { name:'Ballesta',     icon:'\ud83c\udff9', desc:'Flecha penetrante con rango definido. No viaja al infinito.',       type:'weapon', bonus:["+penetración", "+daño"] },
+    'Flame':      { name:'Llama',        icon:'\ud83d\udd25', desc:'Zona de fuego persistente con efectos de llama.',                  type:'weapon', bonus:["+área de fuego", "+daño/segundo"] },
+    'Boots':      { name:'Botas',        icon:'\ud83d\udc9f', desc:'Velocidad de movimiento +15%.',                                    type:'stat', bonus:["⚡ Velocidad +15%"] },
+    'Spinach':    { name:'Espinaca',     icon:'\ud83e\udd6c', desc:'Da\u00f1o total +22%.',                                            type:'stat', bonus:["⚔️ Daño total +22%"] },
+    'Armor':      { name:'Armadura',     icon:'\ud83d\udee1\uFE0F', desc:'Reduce da\u00f1o recibido en 3.',                             type:'stat', bonus:["🛡️ Reducción de daño +3"] },
+    'Magnet':     { name:'Im\u00e1n',    icon:'\ud83e\uddf2', desc:'Radio de recogida de gemas +35%.',                                type:'stat', bonus:["🧲 Radio recogida +35%"] },
+    'Regen':      { name:'Regen',        icon:'\ud83d\udc9a', desc:'Regenera 0.4 HP/segundo.',                                         type:'stat', bonus:["❤️ Regeneración +0.4 HP/s"] },
+    'Ultra':      { name:'Ultra+',       icon:'\ud83c\udf00', desc:'+1 carga, -15s recarga, +potencia.',                              type:'stat', bonus:["⚡ +1 carga Ultra", "⏱ -15s recarga"] },
+    'Vampire':    { name:'Vampiro',      icon:'\ud83e\dddb', desc:'Roba 1 HP por cada 5 kills.',                                       type:'stat', bonus:["🩸 +1 HP cada 5 kills"] },
 };
 
 // ═══════════════════════════════════════════════════════════════
