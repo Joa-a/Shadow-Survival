@@ -107,7 +107,7 @@ const WeaponFactory = {
         }
 
         // ── Cooldown / fire ─────────────────────────────────────
-        this.timer -= dt;
+        this.timer -= dt * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.timer <= 0 && !this.swingActive) {
             this.timer       = this.cooldown;
             this.swingActive = true;
@@ -227,7 +227,7 @@ const WeaponFactory = {
     update(dt) {
         // Zale ultra: double fire rate
         const speedMult = (Game.zaleUltraTimer > 0) ? 2 : 1;
-        this.timer -= dt * speedMult;
+        this.timer -= dt * speedMult * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.timer > 0 || !Game.enemies.length) return;
         this.timer = this.cooldown;
         const sorted = [...Game.enemies].sort((a, b) =>
@@ -262,7 +262,7 @@ const WeaponFactory = {
     }
 
     update(dt) {
-        this.timer -= dt;
+        this.timer -= dt * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.timer > 0) return;
         this.timer = this.cooldown;
 
@@ -467,7 +467,7 @@ const WeaponFactory = {
         }
 
         // ── Fire on cooldown ────────────────────────────────────
-        this.timer -= dt;
+        this.timer -= dt * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.timer <= 0 && !this.active) {
             this.timer  = this.cooldown;
             this.active = true;

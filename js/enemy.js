@@ -99,7 +99,8 @@ class Enemy extends Entity {
         if (this.behaviorTimer > 4) {
             this.behaviorTimer = 0;
             const a2 = Math.random() * Math.PI * 2;
-            this.x = px + Math.cos(a2)*120; this.y = py + Math.sin(a2)*120;
+            const tpDist = 350 + Math.random() * 150;
+            this.x = px + Math.cos(a2)*tpDist; this.y = py + Math.sin(a2)*tpDist;
             Game.spawnParticle(this.x, this.y, '#cc44ff', 8);
         }
         this.x += Math.cos(ang)*this.speed*0.8*dt;

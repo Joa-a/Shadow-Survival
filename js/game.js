@@ -230,6 +230,9 @@ const Game = {
         } else if (charId === 'mage') {
             // ── ZALE ULTRA: Frenesi Arcano ────────────────────────────
             this._ultraZale(dmgBase);
+        } else if (charId === 'rogue') {
+            // ── KAEL ULTRA: Sombra Letal ──────────────────────────────
+            this._ultraKael();
         } else {
             // ── DEFAULT ULTRA: radial bolt burst ────────────────────
             const N = 8 + this.burstLevel * 2;
@@ -390,6 +393,27 @@ const Game = {
         });
 
         this.shake = 16;
+    },
+
+    _ultraKael() {
+        const dur = 6 + this.burstLevel;   // buff duration in seconds
+        // -10% incoming damage = +10% reduction equivalent via damageMult
+        // +10% attack speed via kaelUltraTimer ticking weapons faster
+        // +10% movement speed stacked on top of existing logic
+        this.player.kaelUltraDmgReduct = dur;   // countdown timer
+        this.player.kaelUltraAttack    = dur;
+        this.player.kaelUltraSpeed     = dur;
+
+        // Visual flash
+        this.shake = 8;
+        for (let i = 0; i < 14; i++) {
+            const a = (Math.PI*2/14)*i;
+            this.spawnParticle(
+                this.player.x + Math.cos(a)*30,
+                this.player.y + Math.sin(a)*30,
+                '#44ffcc', 5
+            );
+        }
     },
 
     _buildLightningSegments(tx, ty) {
@@ -669,19 +693,16 @@ const Game = {
         // Spawn well outside the visible area.
         // hw/hh = half the world canvas + generous margin so enemies
         // are never visible when they appear.
-        const margin = isBoss ? 0 : 180;  // boss: spawn near center; regular: off-screen
-        const hw = canvas.width  / 2 + margin;
-        const hh = canvas.height / 2 + margin;
-        let sx, sy;
-        if (Math.random() < 0.5) {
-            sx = (Math.random() < 0.5 ? -hw : hw);
-            sy = (Math.random() * 2 - 1) * hh;
-        } else {
-            sx = (Math.random() * 2 - 1) * hw;
-            sy = (Math.random() < 0.5 ? -hh : hh);
-        }
-        const x = this.player.x + sx;
-        const y = this.player.y + sy;
+        // Spawn on a ring far outside the visible area — never on top of player
+        // Spawn strictly outside visible area — min dist = screen diagonal + buffer
+        const halfW = canvas.width / 2, halfH = canvas.height / 2;
+        const screenCorner = Math.sqrt(halfW * halfW + halfH * halfH);
+        const minSpawnDist = screenCorner + 80;
+        const maxSpawnDist = minSpawnDist + 200;
+        const spawnAngle   = Math.random() * Math.PI * 2;
+        const spawnDist    = minSpawnDist + Math.random() * (maxSpawnDist - minSpawnDist);
+        const x = this.player.x + Math.cos(spawnAngle) * spawnDist;
+        const y = this.player.y + Math.sin(spawnAngle) * spawnDist;
 
         if (isBoss) {
             const bossIdx = this.bossKills % 4;
@@ -1068,7 +1089,8 @@ const Game = {
             const burstCount = 4 + Math.floor(this.time / 60);
             for (let b = 0; b < burstCount; b++) {
                 const angle2 = (Math.PI * 2 / burstCount) * b;
-                const dist2  = Math.max(canvas.width, canvas.height) * 0.72;
+                const halfW2 = canvas.width / 2, halfH2 = canvas.height / 2;
+                const dist2  = Math.sqrt(halfW2*halfW2 + halfH2*halfH2) + 100;
                 const ex = this.player.x + Math.cos(angle2) * dist2;
                 const ey = this.player.y + Math.sin(angle2) * dist2;
                 const t2 = this.time;
@@ -1187,7 +1209,7 @@ const Game = {
                 if (this.player.activeBuffs.shield > 0) {
                     this.player.activeBuffs.shield = 0; this.shake = 5; this.player.iframe = 0.5;
                 } else {
-                    const rawDmg = Math.max(1, e.dmg - this.player.stats.reduction);
+                    const rawDmg = Math.max(1, (e.dmg - this.player.stats.reduction) * (this.player.kaelUltraDmgReduct > 0 ? 0.9 : 1));
                     const dmg = Math.min(rawDmg, Math.ceil(this.player.maxHp * 0.28)); // no insta-kill
                     this.player.hp -= dmg; this.player.iframe = 0.65; this.shake = 7;
                     this.dmgFlash = 0.55; // synced with rAF loop — no setTimeout
@@ -1332,7 +1354,7 @@ const Game = {
             if (!blockedByOrb && ep.dmg > 0 && M.dist(ep.x, ep.y, this.player.x, this.player.y) < ep.r + this.player.r && this.player.iframe <= 0) {
                 if (this.player.activeBuffs.shield > 0) { this.player.activeBuffs.shield = 0; }
                 else {
-                    const rawDmg2 = Math.max(1, ep.dmg - this.player.stats.reduction);
+                    const rawDmg2 = Math.max(1, (ep.dmg - this.player.stats.reduction) * (this.player.kaelUltraDmgReduct > 0 ? 0.9 : 1));
                     const dmg = Math.min(rawDmg2, Math.ceil(this.player.maxHp * 0.28)); // no insta-kill
                     this.player.hp -= dmg; this.player.iframe = 0.5; this.shake = 5;
                     if (this.player.hp <= 0) { this.player.hp = 0; this.gameOver(); return; }
