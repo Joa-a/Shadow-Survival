@@ -216,16 +216,129 @@ const Game = {
         if (this.state !== 'PLAY' || !this.player || this.burstCharges <= 0) return;
         this.burstCharges--;
         this.burstCooldown = this.burstMaxCooldown;
-        const N   = 8 + this.burstLevel * 2;
-        const dmg = (40 + this.burstLevel * 18) * this.player.stats.damageMult *
-                    (this.player.activeBuffs.damage > 0 ? 2 : 1);
-        for (let i = 0; i < N; i++) {
-            const a = (Math.PI * 2 / N) * i;
-            this.projectiles.push({ type:'bolt', x:this.player.x, y:this.player.y, vx:Math.cos(a)*520, vy:Math.sin(a)*520, r:9, life:1.4, dmg, color:'#ffd700' });
+
+        const charId = this.player.charData?.id || '';
+        const dmgBase = (40 + this.burstLevel * 18) * this.player.stats.damageMult *
+                        (this.player.activeBuffs.damage > 0 ? 2 : 1);
+
+        if (charId === 'shaman') {
+            // ── VORATH ULTRA: Tormenta de Rayos ─────────────────────
+            this._ultraVorath(dmgBase);
+        } else if (charId === 'warrior') {
+            // ── ALARIC ULTRA: Tormenta de Látigos ────────────────────
+            this._ultraAlaric(dmgBase);
+        } else {
+            // ── DEFAULT ULTRA: radial bolt burst ────────────────────
+            const N = 8 + this.burstLevel * 2;
+            for (let i = 0; i < N; i++) {
+                const a = (Math.PI * 2 / N) * i;
+                this.projectiles.push({ type:'bolt', x:this.player.x, y:this.player.y,
+                    vx:Math.cos(a)*520, vy:Math.sin(a)*520, r:9, life:1.4, dmg:dmgBase, color:'#ffd700' });
+            }
+            this.shake = 10;
         }
-        this.shake = 10;
         AudioEngine.sfxLevel();
         this._updateBurstUI();
+    },
+
+    _ultraVorath(dmgBase) {
+        const strikes = 8 + this.burstLevel;
+        const stunDur = 1.8 + this.burstLevel * 0.3;
+        const areaR   = 90;
+        const dmg     = dmgBase * 1.6;
+
+        for (let i = 0; i < strikes; i++) {
+            setTimeout(() => {
+                if (this.state !== 'PLAY') return;
+
+                // Random position around player
+                const angle  = Math.random() * Math.PI * 2;
+                const radius = 80 + Math.random() * 320;
+                const tx = this.player.x + Math.cos(angle) * radius;
+                const ty = this.player.y + Math.sin(angle) * radius;
+
+                // Screen shake per strike
+                this.shake = Math.max(this.shake, 8);
+
+                // Visual: lightning bolt stored in lightningBolts array
+                this.lightningBolts.push({
+                    x: tx, y: ty,
+                    life: 0.55,
+                    maxLife: 0.55,
+                    r: areaR,
+                    segments: this._buildLightningSegments(tx, ty),
+                });
+
+                // Spawn glow particles
+                for (let p = 0; p < 10; p++) {
+                    this.spawnParticle(
+                        tx + (Math.random()-0.5)*areaR,
+                        ty + (Math.random()-0.5)*areaR,
+                        '#88ddff', 6
+                    );
+                }
+
+                // Damage + stun all enemies in area
+                for (const e of this.enemies) {
+                    if (e.dead) continue;
+                    const dx = e.x - tx, dy = e.y - ty;
+                    if (dx*dx + dy*dy < (areaR + e.r) * (areaR + e.r)) {
+                        e.takeDamage(dmg);
+                        // Stun: freeze speed temporarily
+                        e._stunTimer = stunDur;
+                        e._preStunSpeed = e.speed;
+                        e.speed = 0;
+                        this.spawnParticle(e.x, e.y, '#ffffff', 8);
+                    }
+                }
+            }, i * 120);
+        }
+        // Big shake at start
+        this.shake = 18;
+    },
+
+    _ultraAlaric(dmgBase) {
+        const dmg     = dmgBase * 1.5;
+        const whipLen = 260;                       // 2× normal whip length
+        const arc     = Math.PI * 1.1;             // sweep arc per whip
+        const numWhips = 5;
+
+        // Launch 5 whips at evenly spaced angles
+        for (let i = 0; i < numWhips; i++) {
+            const baseAngle = (Math.PI * 2 / numWhips) * i;
+
+            // Store ultra whip visual + hit data
+            this.ultraWhips = this.ultraWhips || [];
+            this.ultraWhips.push({
+                angle:    baseAngle,
+                arc:      arc,
+                len:      whipLen,
+                phase:    0,
+                maxPhase: 1,
+                hitSet:   new Set(),
+                dmg:      dmg,
+                color:    '#ff88cc',
+            });
+        }
+
+        // Deal damage via whip sweep ticks (handled in update)
+        this.shake = 14;
+        AudioEngine.sfxLevel();
+    },
+
+    _buildLightningSegments(tx, ty) {
+        // Build zigzag segments from sky to target
+        const segs = [];
+        const topY = ty - 400;
+        let cx = tx + (Math.random()-0.5)*40, cy = topY;
+        const steps = 8;
+        for (let s = 0; s < steps; s++) {
+            const nx = tx + (Math.random()-0.5)*(60*(1-s/steps));
+            const ny = topY + (ty - topY) * ((s+1)/steps);
+            segs.push({ x1:cx, y1:cy, x2:nx, y2:ny });
+            cx = nx; cy = ny;
+        }
+        return segs;
     },
 
     _updateBurstUI() {
@@ -912,6 +1025,51 @@ const Game = {
 
         if (this.shake > 0) this.shake *= 0.86;
 
+        // Stun tick — restore enemy speed after stun expires
+        for (const e of this.enemies) {
+            if (e._stunTimer > 0) {
+                e._stunTimer -= dt;
+                if (e._stunTimer <= 0) {
+                    e._stunTimer = 0;
+                    e.speed = e._preStunSpeed || e.baseSpeed || e.speed || 100;
+                }
+            }
+        }
+
+        // Ultra whips tick (Alaric ultra)
+        if (this.ultraWhips && this.ultraWhips.length) {
+            for (let wi = this.ultraWhips.length - 1; wi >= 0; wi--) {
+                const w = this.ultraWhips[wi];
+                w.phase += dt * 2.4;
+                if (w.phase >= w.maxPhase) { this.ultraWhips.splice(wi, 1); continue; }
+
+                const halfArc  = w.arc / 2;
+                const raw      = w.phase;
+                const ease     = raw < 0.5 ? 2*raw*raw : -1+(4-2*raw)*raw;
+                const currAng  = w.angle - halfArc + w.arc * ease;
+
+                for (const e of this.enemies) {
+                    if (e.dead || w.hitSet.has(e)) continue;
+                    const dx = e.x - this.player.x, dy = e.y - this.player.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist > w.len + e.r) continue;
+                    let diff = Math.atan2(dy, dx) - w.angle;
+                    while (diff >  Math.PI) diff -= Math.PI*2;
+                    while (diff < -Math.PI) diff += Math.PI*2;
+                    if (Math.abs(diff) <= halfArc + 0.12) {
+                        const crit = Math.random() < 0.2;
+                        const dmg  = w.dmg * (crit ? 2.2 : 1);
+                        e.takeDamage(dmg);
+                        const n = M.norm(dx, dy);
+                        e.knockback.x = n.x * 500; e.knockback.y = n.y * 500;
+                        this.spawnParticle(e.x, e.y, '#ff66cc', 6);
+                        this.spawnText(e.x, e.y, Math.floor(dmg), crit);
+                        w.hitSet.add(e);
+                    }
+                }
+            }
+        }
+
         // Enemy update + player collision (spatial hash used for projectiles above)
         for (let i = this.enemies.length-1; i >= 0; i--) {
             const e = this.enemies[i];
@@ -1402,17 +1560,138 @@ const Game = {
         // Lightning bolts
         this.lightningBolts.forEach(bolt => {
             ctx.save();
-            ctx.strokeStyle = `rgba(200,255,100,${bolt.life/bolt.maxLife*0.9})`;
-            ctx.lineWidth   = 2 + Math.random()*2; ctx.shadowColor='#aaff00'; ctx.shadowBlur=10;
-            ctx.beginPath();
-            ctx.moveTo(bolt.fromX-off.x+canvas.width/2, bolt.fromY-off.y+canvas.height/2);
-            for (let s=1; s<=6; s++) {
-                const tx = M.lerp(bolt.fromX,bolt.toX,s/6) + M.rand(-12,12);
-                const ty = M.lerp(bolt.fromY,bolt.toY,s/6) + M.rand(-12,12);
-                ctx.lineTo(tx-off.x+canvas.width/2, ty-off.y+canvas.height/2);
+            const alpha = bolt.life / bolt.maxLife;
+
+            if (bolt.segments) {
+                // ── Vorath skyfall lightning ─────────────────────
+                const W2 = canvas.width/2, H2 = canvas.height/2;
+
+                // Impact area glow
+                const sx2 = bolt.x - off.x + W2, sy2 = bolt.y - off.y + H2;
+                const glow = ctx.createRadialGradient(sx2,sy2,0,sx2,sy2,bolt.r);
+                glow.addColorStop(0,   `rgba(180,230,255,${alpha*0.55})`);
+                glow.addColorStop(0.5, `rgba(80,160,255,${alpha*0.25})`);
+                glow.addColorStop(1,   'transparent');
+                ctx.fillStyle = glow;
+                ctx.beginPath(); ctx.arc(sx2,sy2,bolt.r,0,Math.PI*2); ctx.fill();
+
+                // Bright impact circle
+                if (alpha > 0.6) {
+                    ctx.globalAlpha = (alpha-0.6)/0.4;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath(); ctx.arc(sx2,sy2,bolt.r*0.35,0,Math.PI*2); ctx.fill();
+                    ctx.globalAlpha = 1;
+                }
+
+                // Zigzag bolt segments
+                ctx.shadowColor = '#aaeeff'; ctx.shadowBlur = 14;
+                bolt.segments.forEach((seg, si) => {
+                    // Outer thick bolt (white-blue)
+                    ctx.strokeStyle = `rgba(200,240,255,${alpha*0.9})`;
+                    ctx.lineWidth   = 3 + (1-si/bolt.segments.length)*2;
+                    ctx.beginPath();
+                    ctx.moveTo(seg.x1-off.x+W2, seg.y1-off.y+H2);
+                    ctx.lineTo(seg.x2-off.x+W2, seg.y2-off.y+H2);
+                    ctx.stroke();
+                    // Inner bright core
+                    ctx.strokeStyle = `rgba(255,255,255,${alpha*0.7})`;
+                    ctx.lineWidth   = 1;
+                    ctx.stroke();
+                });
+
+                // Stun star on stunned enemies near this bolt
+                for (const e of this.enemies) {
+                    if (e._stunTimer > 0) {
+                        const esx = e.x - off.x + W2, esy = e.y - off.y + H2;
+                        ctx.shadowColor = '#ffff00'; ctx.shadowBlur = 6;
+                        ctx.fillStyle   = '#ffee00';
+                        ctx.font        = '14px serif';
+                        ctx.textAlign   = 'center';
+                        ctx.fillText('⚡', esx, esy - e.r - 8 + Math.sin(Date.now()*0.008)*3);
+                    }
+                }
+            } else {
+                // ── Default chain lightning bolt ─────────────────
+                ctx.strokeStyle = `rgba(200,255,100,${alpha*0.9})`;
+                ctx.lineWidth   = 2 + Math.random()*2; ctx.shadowColor='#aaff00'; ctx.shadowBlur=10;
+                ctx.beginPath();
+                ctx.moveTo(bolt.fromX-off.x+canvas.width/2, bolt.fromY-off.y+canvas.height/2);
+                for (let s=1; s<=6; s++) {
+                    const tx2 = M.lerp(bolt.fromX,bolt.toX,s/6) + M.rand(-12,12);
+                    const ty2 = M.lerp(bolt.fromY,bolt.toY,s/6) + M.rand(-12,12);
+                    ctx.lineTo(tx2-off.x+canvas.width/2, ty2-off.y+canvas.height/2);
+                }
+                ctx.stroke();
             }
-            ctx.stroke(); ctx.restore();
+            ctx.restore();
         });
+
+        // Ultra whips render (Alaric)
+        if (this.ultraWhips && this.ultraWhips.length) {
+            this.ultraWhips.forEach(w => {
+                const px = this.player.x, py = this.player.y;
+                const sx = px - off.x + canvas.width/2;
+                const sy = py - off.y + canvas.height/2;
+                const raw    = w.phase;
+                const ease   = raw < 0.5 ? 2*raw*raw : -1+(4-2*raw)*raw;
+                const halfArc  = w.arc / 2;
+                const startAng = w.angle - halfArc;
+                const currAng  = startAng + w.arc * ease;
+                const fadeOut  = Math.max(0, 1 - raw * 1.4);
+
+                ctx.save();
+                ctx.translate(sx, sy);
+
+                // Ghost arc trail
+                ctx.globalAlpha = 0.18 * fadeOut;
+                ctx.fillStyle   = '#ff88cc';
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, w.len, startAng, currAng);
+                ctx.closePath(); ctx.fill();
+
+                // Whip body — tapered bezier from base to tip
+                const tipX = Math.cos(currAng) * w.len;
+                const tipY = Math.sin(currAng) * w.len;
+                const midX = Math.cos(currAng - halfArc * 0.5) * w.len * 0.5;
+                const midY = Math.sin(currAng - halfArc * 0.5) * w.len * 0.5;
+
+                for (let seg = 6; seg >= 1; seg--) {
+                    const t1 = (seg - 1) / 6, t2 = seg / 6;
+                    const thick = (1 - t1) * 5.5 + 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(midX*t1*2, midY*t1*2);
+                    ctx.lineTo(midX*t2*2, midY*t2*2);
+                    ctx.strokeStyle = `rgba(255,120,200,${fadeOut * (0.5 + t1*0.5)})`;
+                    ctx.lineWidth   = thick;
+                    ctx.shadowColor = '#ff44aa';
+                    ctx.shadowBlur  = 12 * fadeOut;
+                    ctx.stroke();
+                }
+
+                // Outer whip segment (mid to tip)
+                ctx.beginPath();
+                ctx.moveTo(midX, midY);
+                ctx.quadraticCurveTo(
+                    Math.cos(currAng)*w.len*0.75, Math.sin(currAng)*w.len*0.75,
+                    tipX, tipY
+                );
+                ctx.strokeStyle = `rgba(255,180,230,${fadeOut * 0.9})`;
+                ctx.lineWidth   = 2;
+                ctx.shadowColor = '#ff88cc';
+                ctx.shadowBlur  = 18 * fadeOut;
+                ctx.stroke();
+
+                // Tip spark
+                ctx.globalAlpha = fadeOut * 0.9;
+                ctx.fillStyle   = '#ffffff';
+                ctx.shadowColor = '#ff44aa';
+                ctx.shadowBlur  = 20;
+                ctx.beginPath(); ctx.arc(tipX, tipY, 5, 0, Math.PI*2); ctx.fill();
+
+                ctx.restore();
+            });
+        }
 
         // Player projectiles — use drawProjectile router
         this.projectiles.forEach(p => {
