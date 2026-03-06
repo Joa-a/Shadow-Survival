@@ -603,7 +603,7 @@ const Game = {
         // Spawn well outside the visible area.
         // hw/hh = half the world canvas + generous margin so enemies
         // are never visible when they appear.
-        const margin = 140;
+        const margin = isBoss ? 0 : 180;  // boss: spawn near center; regular: off-screen
         const hw = canvas.width  / 2 + margin;
         const hh = canvas.height / 2 + margin;
         let sx, sy;
@@ -618,42 +618,42 @@ const Game = {
         const y = this.player.y + sy;
 
         if (isBoss) {
-            // Cycle through 4 distinct boss types
             const bossIdx = this.bossKills % 4;
             const BOSS_DEFS = [
-                { bossType:0, name:'⚠ EL COLOSO ⚠',    color:'#ff1133', r:44, speed:90,  dmg:18, xp:100,
-                  desc:'Un gigante de sangre y furia' },
-                { bossType:1, name:'⚠ LA TEJEDORA ⚠',  color:'#cc44ff', r:34, speed:130, dmg:14, xp:110,
-                  desc:'La araña del vacío eterno' },
-                { bossType:2, name:'⚠ EL LICHE ⚠',     color:'#44eeff', r:36, speed:115, dmg:16, xp:120,
-                  desc:'Señor de la muerte helada' },
-                { bossType:3, name:'⚠ EL ABISMO ⚠',    color:'#8800ff', r:40, speed:145, dmg:20, xp:140,
-                  desc:'El vacío que lo devora todo' },
+                { bossType:0, name:'⚠ EL COLOSO ⚠',    color:'#ff1133', r:44, speed:90,  dmg:18, xp:100 },
+                { bossType:1, name:'⚠ LA TEJEDORA ⚠',  color:'#cc44ff', r:34, speed:130, dmg:14, xp:110 },
+                { bossType:2, name:'⚠ EL LICHE ⚠',     color:'#44eeff', r:36, speed:115, dmg:16, xp:120 },
+                { bossType:3, name:'⚠ EL ABISMO ⚠',    color:'#8800ff', r:40, speed:145, dmg:20, xp:140 },
             ];
-            const bd  = BOSS_DEFS[bossIdx];
-            const hpMult = (this.gameMode === 'frenetic' ? 1.4 : 1);
-            const bossHp = (1200 + this.lastMinute * 400) * hpMult;
-            const data = { type:'boss', bossType:bd.bossType, hp:bossHp,
-                           speed: bd.speed * (this.gameMode==='frenetic'?1.25:1),
-                           r:bd.r, color:bd.color, xp:bd.xp, dmg:bd.dmg, isBoss:true };
-            const e = new Enemy(x, y, data, 1);
+            const bd      = BOSS_DEFS[bossIdx];
+            const hpMult  = (this.gameMode === 'frenetic' ? 1.4 : 1);
+            const bossHp  = (1200 + this.lastMinute * 400) * hpMult;
 
-            // Despawn all regular enemies
+            // Despawn all regular enemies immediately
             this.enemies.forEach(en => { if (!en.isBoss) en.dead = true; });
             this.enemies = [];
-            this.enemies.push(e);
-            this.currentBoss = e;
 
-            // Arena color matches boss
-            this.bossArena = { x: this.player.x, y: this.player.y, r: 760, color: bd.color };
+            // Arena centered on player (locked here, not on boss)
+            this.bossArena      = { x: this.player.x, y: this.player.y, r: 760, color: bd.color };
             this.bossArenaAlpha = 0;
 
+            // Show HUD and warning immediately
             document.getElementById('boss-hud').style.display   = 'flex';
             document.getElementById('boss-name').textContent    = bd.name;
             document.getElementById('boss-bar-fill').style.width = '100%';
             this.shake = 22;
             AudioEngine.sfxBoss();
             this.showWaveMessage(bd.name);
+
+            // 3-second ritual summon before boss becomes active
+            this.bossSpawning = {
+                timer:    3.0,
+                x:        this.bossArena.x,
+                y:        this.bossArena.y,
+                bd,
+                bossHp,
+                color:    bd.color,
+            };
             return;
         }
 
@@ -833,6 +833,32 @@ const Game = {
             document.getElementById('txt-combo').textContent = 'x' + this.combo;
         } else { badge.style.display = 'none'; }
 
+        // Boss summoning ritual countdown (3s before boss goes active)
+        if (this.bossSpawning) {
+            this.bossSpawning.timer -= dt;
+            // Shake pulses every 0.5s during ritual
+            if (Math.floor(this.bossSpawning.timer * 2) !== Math.floor((this.bossSpawning.timer + dt) * 2)) {
+                this.shake = Math.max(this.shake, 6);
+            }
+            if (this.bossSpawning.timer <= 0) {
+                // Summon the actual enemy now
+                const bs = this.bossSpawning;
+                this.bossSpawning = null;
+                const data = { type:'boss', bossType:bs.bd.bossType, hp:bs.bossHp,
+                               speed: bs.bd.speed * (this.gameMode==='frenetic'?1.25:1),
+                               r:bs.bd.r, color:bs.bd.color, xp:bs.bd.xp, dmg:bs.bd.dmg, isBoss:true };
+                const e = new Enemy(bs.x, bs.y, data, 1);
+                this.enemies.push(e);
+                this.currentBoss = e;
+                this.shake = 28;
+                // Big spawn particle burst
+                for (let i = 0; i < 24; i++) {
+                    const a = (Math.PI*2/24)*i;
+                    this.spawnParticle(bs.x + Math.cos(a)*60, bs.y + Math.sin(a)*60, bs.color, 10);
+                }
+            }
+        }
+
         // Boss bar
         if (this.currentBoss && !this.currentBoss.dead) {
             document.getElementById('boss-bar-fill').style.width = (this.currentBoss.hp / this.currentBoss.maxHp * 100) + '%';
@@ -976,7 +1002,7 @@ const Game = {
             const burstCount = 4 + Math.floor(this.time / 60);
             for (let b = 0; b < burstCount; b++) {
                 const angle2 = (Math.PI * 2 / burstCount) * b;
-                const dist2  = Math.max(canvas.width, canvas.height) * 0.55;
+                const dist2  = Math.max(canvas.width, canvas.height) * 0.72;
                 const ex = this.player.x + Math.cos(angle2) * dist2;
                 const ey = this.player.y + Math.sin(angle2) * dist2;
                 const t2 = this.time;
@@ -1780,6 +1806,63 @@ const Game = {
             }
 
             // Barrier ring (1 stroke only, no shadowBlur loop)
+            // Boss spawning ritual visual
+            if (this.bossSpawning) {
+                const bs    = this.bossSpawning;
+                const prog  = 1 - (bs.timer / 3.0);   // 0→1 over 3s
+                const rsx   = bs.x - off.x + canvas.width  / 2;
+                const rsy   = bs.y - off.y + canvas.height / 2;
+                const bcol  = bs.color;
+                const pulse2 = 0.5 + Math.sin(t2 * 6) * 0.5;
+
+                // Countdown text
+                const secs = Math.ceil(bs.timer);
+                ctx.save();
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.font = 'bold 52px Rajdhani, sans-serif';
+                ctx.globalAlpha = 0.9;
+                ctx.fillStyle   = bcol;
+                ctx.shadowColor = bcol; ctx.shadowBlur = 30;
+                ctx.fillText(secs, rsx, rsy - 80);
+                ctx.font = '16px Rajdhani, sans-serif';
+                ctx.globalAlpha = 0.7;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText('INVOCANDO...', rsx, rsy - 46);
+                ctx.shadowBlur = 0;
+
+                // Expanding ritual ring
+                const ritR = prog * 120;
+                ctx.beginPath(); ctx.arc(rsx, rsy, ritR, 0, Math.PI*2);
+                ctx.strokeStyle = bcol;
+                ctx.globalAlpha = (1 - prog) * 0.8 * pulse2;
+                ctx.lineWidth = 4; ctx.stroke();
+
+                // Inner pulsing glow at center
+                const ig = ctx.createRadialGradient(rsx, rsy, 0, rsx, rsy, 50 * (0.5 + prog * 0.5));
+                ig.addColorStop(0,   bcol + 'cc');
+                ig.addColorStop(0.5, bcol + '44');
+                ig.addColorStop(1,   'transparent');
+                ctx.globalAlpha = 0.6 * pulse2;
+                ctx.fillStyle = ig;
+                ctx.beginPath(); ctx.arc(rsx, rsy, 50 * (0.5 + prog * 0.5), 0, Math.PI*2); ctx.fill();
+
+                // Rotating rune symbols converging to center
+                const RUNES2 = ['⚠','☠','⚡','💀','🔥','⚔'];
+                ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                for (let i = 0; i < 6; i++) {
+                    const baseAngle2 = (Math.PI*2/6)*i + t2 * 1.5;
+                    const runeR = (1 - prog) * 180 + 30;
+                    ctx.globalAlpha = Math.min(1, prog * 2) * 0.8;
+                    ctx.fillStyle   = bcol;
+                    ctx.shadowColor = bcol; ctx.shadowBlur = 10;
+                    ctx.fillText(RUNES2[i],
+                        rsx + Math.cos(baseAngle2) * runeR,
+                        rsy + Math.sin(baseAngle2) * runeR);
+                }
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+
             const pulse = 0.6 + Math.sin(t2 * 2.4) * 0.4;
             const bCol  = ar.color || '#ff1133';
             ctx.beginPath(); ctx.arc(sx, sy, ar.r, 0, Math.PI * 2);
