@@ -524,6 +524,7 @@ const Game = {
         this.burstMaxCooldown = 120; this.burstCooldown    = 0;  this.bossKills        = 0;
         this.hitstopFrames = 0; this.dmgFlash = 0;
         this.deathBar = 0; this.deathBarTimer = 0;
+        this._lastDeathBarKills = 0;
         this.runes = []; this.runeSpawnTimer = 0;
         this.lifeOrbs = []; this.goldTimer = 0;
         this._wisps = null;
@@ -1092,7 +1093,10 @@ const Game = {
         this.gems.slice(0, 30).forEach(g => {
             const mm = toMM(g.x, g.y);
             if (mm.x<0||mm.x>W||mm.y<0||mm.y>H) return;
-            ctx.fillStyle = '#4488ff'; ctx.fillRect(mm.x-1, mm.y-1, 2, 2);
+            const tier = g.tier || 0;
+            ctx.fillStyle = tier === 2 ? '#ff8800' : tier === 1 ? '#ffcc00' : '#4488ff';
+            const mr = tier === 2 ? 3 : tier === 1 ? 2 : 1;
+            ctx.beginPath(); ctx.arc(mm.x, mm.y, mr, 0, Math.PI*2); ctx.fill();
         });
         this.lifeOrbs.forEach(lo => {
             const mm = toMM(lo.x, lo.y);
@@ -1188,7 +1192,11 @@ const Game = {
         // ── DEATH BAR (Magic Survival) ──────────────────────────────
         // Fills over time + accelerates with kills. At 100 → elite wave
         this.deathBar += dt * (2.5 + this.time / 120);
-        if (this.kills > 0) this.deathBar += (this.kills % 5 === 0 ? 0.4 : 0);
+        // Add a small spike each time we cross a 10-kill milestone (tracked, not per-frame)
+        if (this.kills > (this._lastDeathBarKills || 0) && this.kills % 10 === 0) {
+            this._lastDeathBarKills = this.kills;
+            this.deathBar += 4;
+        }
         if (this.deathBar >= 100) {
             this.deathBar = 0;
             // Spawn a burst of elite enemies
@@ -1402,7 +1410,7 @@ const Game = {
                 if (e === this.currentBoss) this.shake = 20;
                 this.kills++; this.combo++; this.comboTimer = 2.8;
                 const xpMult = (this.goldTimer > 0 ? 2 : 1) * (this.gameMode === 'frenetic' ? 1.5 : 1);
-                this.gems.push({ x:e.x, y:e.y, xp: e.xpValue * (e.elite?2:1) * xpMult });
+                this.gems.push({ x:e.x, y:e.y, xp: e.xpValue * (e.elite?2:1) * xpMult, tier:0 });
                 this.spawnParticle(e.x, e.y, e.color, e.isBoss?20:10);
                 AudioEngine.sfxKill();
                 // Life orb drop (8% chance, bosses always drop)
@@ -1549,6 +1557,59 @@ const Game = {
             if (ep.life <= 0) this.enemyProjectiles.splice(i, 1);
         }
 
+        // ── GEM MERGING ─────────────────────────────────────────────
+        // Tier 0 (blue, r≈5): 10 within 40px → merge into tier 1 (yellow, r≈9)
+        // Tier 1 (yellow, r≈9): 10 within 65px → merge into tier 2 (orange, r≈16)
+        // Runs every 6 frames to avoid per-frame overhead
+        if (!this._gemMergeFrame) this._gemMergeFrame = 0;
+        this._gemMergeFrame++;
+        if (this._gemMergeFrame % 6 === 0 && this.gems.length > 10) {
+            const MERGE_COUNT  = [10,   10  ];  // how many of tier N merge into tier N+1
+            const MERGE_RADIUS = [40,   65  ];  // max cluster radius per tier
+            const MAX_TIER     = 1;             // tier 2 = final, no further merging
+
+            for (let tier = 0; tier <= MAX_TIER; tier++) {
+                const candidates = this.gems.filter(g => (g.tier || 0) === tier);
+                if (candidates.length < MERGE_COUNT[tier]) continue;
+
+                // Grid-bucket to find clusters quickly
+                const cellSize = MERGE_RADIUS[tier];
+                const cells = new Map();
+                for (const g of candidates) {
+                    const cx = Math.floor(g.x / cellSize);
+                    const cy = Math.floor(g.y / cellSize);
+                    const key = cx + ',' + cy;
+                    if (!cells.has(key)) cells.set(key, []);
+                    cells.get(key).push(g);
+                }
+
+                const toRemove = new Set();
+                for (const [, cell] of cells) {
+                    if (cell.length < MERGE_COUNT[tier]) continue;
+                    // Take exactly MERGE_COUNT gems from this cell
+                    const group = cell.slice(0, MERGE_COUNT[tier]);
+                    if (group.some(g => toRemove.has(g))) continue;
+
+                    // Check they're all within MERGE_RADIUS of each other's centroid
+                    const cx = group.reduce((s, g) => s + g.x, 0) / group.length;
+                    const cy2 = group.reduce((s, g) => s + g.y, 0) / group.length;
+                    const allClose = group.every(g =>
+                        M.dist(g.x, g.y, cx, cy2) <= MERGE_RADIUS[tier]);
+                    if (!allClose) continue;
+
+                    // Merge: sum all XP, place at centroid, bump tier
+                    const totalXp = group.reduce((s, g) => s + g.xp, 0);
+                    group.forEach(g => toRemove.add(g));
+                    this.gems.push({ x: cx, y: cy2, xp: totalXp, tier: tier + 1 });
+                    // Brief flash at merge point
+                    this.spawnParticle(cx, cy2, tier === 0 ? '#ffdd44' : '#ff8800', 5);
+                }
+
+                if (toRemove.size > 0)
+                    this.gems = this.gems.filter(g => !toRemove.has(g));
+            }
+        }
+
         // XP gems
         const pickupRange   = this.gameMode === 'frenetic' ? this.player.pickupRange * 2.0 : this.player.pickupRange;
         const gemPullSpeed  = this.gameMode === 'frenetic' ? 18 : 10;
@@ -1558,17 +1619,16 @@ const Game = {
             if (d < pickupRange) { g.x=M.lerp(g.x,this.player.x,dt*gemPullSpeed); g.y=M.lerp(g.y,this.player.y,dt*gemPullSpeed); }
             if (d < 16) {
                 const xpGain = g.xp * (1 + this.combo * 0.015) * (this.gameMode === 'frenetic' ? 1.3 : 1);
-                this.player.xp += xpGain;
-                this.player.xp += xpGain;
-                while (this.player.xp >= this.player.nextXp) {
+                this.player.xp += xpGain;   // ← only once (was duplicated)
+                if (this.player.xp >= this.player.nextXp) {
                     this.player.xp -= this.player.nextXp;
-                    // Hybrid XP curve: fast early (give player power quickly),
-                    // medium mid-game, nearly linear late (always feel progress)
                     const _lv = this.player.level;
                     const _xpMult = _lv < 5 ? 1.55 : _lv < 12 ? 1.35 : 1.20;
                     this.player.nextXp = Math.floor(this.player.nextXp * _xpMult);
                     this.player.level++;
-                    this.triggerLevelUp();
+                    this.gems.splice(i, 1);
+                    this.triggerLevelUp();   // show screen; return — player picks before next level
+                    return;                  // stop processing gems this frame
                 }
                 this.gems.splice(i, 1);
             }
@@ -1829,24 +1889,63 @@ const Game = {
         // Mana Orbs (XP) — Magic Survival style glowing spheres
         const gt = Date.now() * 0.003;
         this.gems.forEach(g => {
-            const sx = g.x-off.x+canvas.width/2, sy = g.y-off.y+canvas.height/2+Math.sin(gt + g.x*0.01)*3;
-            const orb_pulse = 0.7 + Math.sin(gt*2 + g.y*0.01)*0.3;
+            const tier = g.tier || 0;
+            const sx   = g.x - off.x + canvas.width  / 2;
+            const sy   = g.y - off.y + canvas.height / 2 + Math.sin(gt + g.x * 0.01) * 3;
+            const pulse = 0.7 + Math.sin(gt * 2 + g.y * 0.01) * 0.3;
+
+            // Tier-based visual parameters
+            // tier 0: blue  (original)  r≈5
+            // tier 1: yellow (merged ×10) r≈9
+            // tier 2: orange (merged ×100) r≈16
+            const configs = [
+                { outer:'#3355cc', core:'#6688ff', hi:'#ccddff', glow:'#88aaff', coreR:5,  outerR:9,  shadowR:14 },
+                { outer:'#cc8800', core:'#ffcc00', hi:'#ffffaa', glow:'#ffdd44', coreR:9,  outerR:15, shadowR:22 },
+                { outer:'#cc4400', core:'#ff7700', hi:'#ffcc88', glow:'#ff8800', coreR:16, outerR:26, shadowR:34 },
+            ];
+            const cfg = configs[Math.min(tier, configs.length - 1)];
+
             ctx.save();
             // Outer glow
-            ctx.globalAlpha = 0.18 * orb_pulse;
-            ctx.shadowColor = '#88aaff'; ctx.shadowBlur = 14;
-            ctx.fillStyle = '#3355cc';
-            ctx.beginPath(); ctx.arc(sx, sy, 9, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = (tier > 0 ? 0.3 : 0.18) * pulse;
+            ctx.shadowColor = cfg.glow; ctx.shadowBlur = cfg.shadowR;
+            ctx.fillStyle   = cfg.outer;
+            ctx.beginPath(); ctx.arc(sx, sy, cfg.outerR, 0, Math.PI * 2); ctx.fill();
+
             // Core orb
-            ctx.globalAlpha = 0.9;
-            ctx.shadowBlur = 8;
-            ctx.fillStyle = '#6688ff';
-            ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI*2); ctx.fill();
-            // Highlight
+            ctx.globalAlpha = 0.92;
+            ctx.shadowBlur  = tier > 0 ? 12 : 8;
+            ctx.fillStyle   = cfg.core;
+            ctx.beginPath(); ctx.arc(sx, sy, cfg.coreR, 0, Math.PI * 2); ctx.fill();
+
+            // Highlight shine
             ctx.globalAlpha = 0.7;
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#ccddff';
-            ctx.beginPath(); ctx.arc(sx-1.5, sy-1.5, 1.8, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur  = 0;
+            ctx.fillStyle   = cfg.hi;
+            ctx.beginPath(); ctx.arc(sx - cfg.coreR * 0.28, sy - cfg.coreR * 0.28,
+                                     cfg.coreR * 0.35, 0, Math.PI * 2); ctx.fill();
+
+            // Tier 1+: spinning ring
+            if (tier >= 1) {
+                ctx.globalAlpha = 0.55 * pulse;
+                ctx.strokeStyle = cfg.glow; ctx.lineWidth = 1.5;
+                ctx.shadowColor = cfg.glow; ctx.shadowBlur = 8;
+                ctx.setLineDash([4, 3]);
+                ctx.beginPath();
+                ctx.arc(sx, sy, cfg.outerR * 0.88 + Math.sin(gt * 3 + g.x) * 2, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Tier 2: extra outer pulse ring
+            if (tier >= 2) {
+                ctx.globalAlpha = 0.25 * pulse;
+                ctx.strokeStyle = cfg.glow; ctx.lineWidth = 2;
+                ctx.shadowBlur = 18;
+                ctx.beginPath(); ctx.arc(sx, sy, cfg.outerR + 6 + Math.sin(gt * 4) * 3, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
             ctx.restore();
         });
 

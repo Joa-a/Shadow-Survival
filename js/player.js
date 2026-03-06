@@ -244,26 +244,98 @@ class Player extends Entity {
 
         if (id === 'warrior') {
             // ── ALARIC — Whip ─────────────────────────────────────
-            // Swinging leather whip on the right side
-            const swingAng = faceAng + Math.sin(t * 4) * 0.6;
-            const whipLen  = r * 2.8;
-            ctx.strokeStyle = '#8B4513';
-            ctx.lineWidth   = 3;
-            ctx.shadowColor = '#cc6622'; ctx.shadowBlur = 6;
-            ctx.beginPath();
-            ctx.moveTo(Math.cos(faceAng) * r, Math.sin(faceAng) * r);
-            // bezier whip curve
-            const cx1 = Math.cos(swingAng + 0.4) * whipLen * 0.5;
-            const cy1 = Math.sin(swingAng + 0.4) * whipLen * 0.5;
-            const tx2 = Math.cos(swingAng) * whipLen;
-            const ty2 = Math.sin(swingAng) * whipLen;
-            ctx.quadraticCurveTo(cx1, cy1, tx2, ty2);
-            ctx.stroke();
-            // tip spark
-            ctx.globalAlpha = 0.7 + Math.sin(t * 8) * 0.3;
-            ctx.fillStyle   = '#ff8822';
-            ctx.shadowColor = '#ff4400'; ctx.shadowBlur = 10;
-            ctx.beginPath(); ctx.arc(tx2, ty2, 3, 0, Math.PI*2); ctx.fill();
+            // Structure: short handle → tapered sinusoidal lash → crack tip
+            // The lash snakes outward with a sine wave perpendicular to aim dir,
+            // animating continuously so it looks alive in the hand.
+
+            const SEGS      = 10;
+            const whipLen   = r * 3.8;      // total reach from hand
+            const handOff   = r * 1.05;     // start point (edge of player body)
+            const wave      = Math.sin(t * 5.5) * 0.55;   // undulating motion
+            const wave2     = Math.sin(t * 5.5 + Math.PI) * 0.3;
+
+            // Perpendicular to aim direction (for the sine wave offset)
+            const perpX = -Math.sin(faceAng);
+            const perpY =  Math.cos(faceAng);
+            // Forward direction
+            const fwdX  =  Math.cos(faceAng);
+            const fwdY  =  Math.sin(faceAng);
+
+            // ── Handle (grip) ─────────────────────────────────────
+            const hx0 = fwdX * (r * 0.55);
+            const hy0 = fwdY * (r * 0.55);
+            const hx1 = fwdX * handOff;
+            const hy1 = fwdY * handOff;
+
+            ctx.save();
+            ctx.strokeStyle = '#5c3018';
+            ctx.lineWidth   = 6;
+            ctx.lineCap     = 'round';
+            ctx.shadowColor = '#3a1a08'; ctx.shadowBlur = 4;
+            ctx.beginPath(); ctx.moveTo(hx0, hy0); ctx.lineTo(hx1, hy1); ctx.stroke();
+            // Grip wrapping
+            ctx.strokeStyle = '#8B4010';
+            ctx.lineWidth   = 2;
+            ctx.beginPath(); ctx.moveTo(hx0, hy0); ctx.lineTo(hx1, hy1); ctx.stroke();
+
+            // ── Lash — tapered sinusoidal segments ────────────────
+            for (let s = 0; s < SEGS; s++) {
+                const t0 = s       / SEGS;
+                const t1 = (s + 1) / SEGS;
+
+                // Forward positions along the whip
+                const f0 = handOff + t0 * whipLen;
+                const f1 = handOff + t1 * whipLen;
+
+                // Sine wave amplitude fades out toward tip (tight at tip)
+                const amp0 = wave  * (1 - t0) * r * 1.4;
+                const amp1 = wave  * (1 - t1) * r * 1.4;
+                // Secondary wave for more natural S-curve
+                const amp0b = wave2 * (1 - t0 * 0.6) * r * 0.6;
+                const amp1b = wave2 * (1 - t1 * 0.6) * r * 0.6;
+
+                const x0 = fwdX * f0 + perpX * (amp0 + amp0b);
+                const y0 = fwdY * f0 + perpY * (amp0 + amp0b);
+                const x1 = fwdX * f1 + perpX * (amp1 + amp1b);
+                const y1 = fwdY * f1 + perpY * (amp1 + amp1b);
+
+                // Thickness: 5px at base → 0.5px at tip
+                const thickness = Math.max(0.5, 5.5 * Math.pow(1 - t0, 1.4));
+                // Color: dark brown at base → tan at tip
+                const brt = Math.floor(60 + t0 * 55);
+                ctx.strokeStyle = `rgb(${brt + 70},${brt + 28},${brt - 20})`;
+                ctx.lineWidth   = thickness;
+                ctx.lineCap     = 'round';
+                ctx.shadowColor = '#8B4010';
+                ctx.shadowBlur  = Math.max(0, 6 - s * 0.5);
+
+                ctx.beginPath();
+                ctx.moveTo(x0, y0);
+                ctx.lineTo(x1, y1);
+                ctx.stroke();
+            }
+
+            // ── Crack tip spark ───────────────────────────────────
+            const tipF  = handOff + whipLen;
+            const tipAmp = wave * r * 1.4 * 0 + wave2 * r * 0.6 * 0.4; // near-zero at tip
+            const tipX  = fwdX * tipF + perpX * tipAmp;
+            const tipY  = fwdY * tipF + perpY * tipAmp;
+
+            ctx.globalAlpha = 0.6 + Math.sin(t * 12) * 0.4;
+            ctx.fillStyle   = '#ffffff';
+            ctx.shadowColor = '#ff8822'; ctx.shadowBlur = 14;
+            ctx.beginPath(); ctx.arc(tipX, tipY, 2.2, 0, Math.PI * 2); ctx.fill();
+            // Two tiny sparks shooting off tip
+            for (let sp = 0; sp < 2; sp++) {
+                const sa = faceAng + (sp === 0 ? 0.6 : -0.6) + wave * 0.5;
+                ctx.globalAlpha = 0.45 * Math.abs(Math.sin(t * 8 + sp));
+                ctx.fillStyle   = '#ff6600';
+                ctx.shadowBlur  = 6;
+                ctx.beginPath();
+                ctx.arc(tipX + Math.cos(sa) * 5, tipY + Math.sin(sa) * 5, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
 
         } else if (id === 'mage') {
             // ── ZALE — Magic Wand ─────────────────────────────────
