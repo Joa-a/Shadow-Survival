@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SHADOW SURVIVOR: ETERNAL NIGHT</title>
+    <!-- iOS full-screen / safe-area support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#03010a">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/hud.css">
+    <link rel="stylesheet" href="css/overlays.css">
+</head>
+<body>
+
+<!-- LOADING SCREEN (canvas-based) -->
+<div id="loading-screen">
+    <canvas id="loading-canvas"></canvas>
+</div>
+
+<!-- TITLE SCREEN (canvas-based, after loading) -->
+<div id="title-screen">
+    <canvas id="title-canvas"></canvas>
+    <button id="title-continue-btn" aria-label="Continuar"></button>
+</div>
+
+<!-- ═══ LOGIN SCREEN ════════════════════════════════════════════ -->
+<div id="login-screen" class="overlay" style="display:none; z-index:9500;">
+    <div class="login-box">
+        <div class="login-moon">🌙</div>
+        <div class="login-title">SHADOW SURVIVOR</div>
+        <div id="login-sub" class="login-sub">ELIGE TU NOMBRE DE GUERRERO</div>
+        <div class="login-field-wrap">
+            <input id="login-input" class="login-input" type="text"
+                   maxlength="16" placeholder="Tu nombre único…"
+                   autocomplete="off" spellcheck="false"/>
+        </div>
+        <div class="login-field-wrap" style="margin-top:10px;">
+            <input id="login-pin" class="login-input" type="password"
+                   maxlength="6" placeholder="PIN de 6 dígitos"
+                   autocomplete="new-password" inputmode="numeric"
+                   style="letter-spacing:6px; font-size:20px; text-align:center;"/>
+        </div>
+        <div id="login-error" class="login-error"></div>
+        <button class="btn-main login-btn" id="login-btn">⚔️ &nbsp; ENTRAR</button>
+        <div class="login-hint" id="login-hint">Nombre único · PIN de 6 dígitos para recuperar tu cuenta</div>
+    </div>
+</div>
+
+<!-- ═══ LEADERBOARD MODAL ════════════════════════════════════════ -->
+<div id="lb-modal" class="overlay" style="display:none; z-index:2500;">
+    <div class="lb-panel">
+        <div class="lb-header">
+            <span class="lb-title">🏆 &nbsp; RANKING</span>
+            <button class="lb-close" id="lb-close-btn">✕</button>
+        </div>
+        <div class="lb-subtitle">TIEMPO DE SUPERVIVENCIA</div>
+        <div id="lb-list" class="lb-list"></div>
+        <button class="btn-secondary" id="lb-close-btn2" style="margin-top:16px;">CERRAR</button>
+    </div>
+</div>
+
+<!-- GAME -->
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+<div id="flash"></div>
+<div id="wave-indicator"></div>
+<div id="kill-milestone"></div>
+
+<!-- HUD -->
+<div id="hud">
+    <div class="xp-container"><div id="xp-fill"></div></div>
+    <div id="xp-label">XP</div>
+    <!-- Death Bar — Magic Survival intensity meter -->
+    <div id="death-bar-wrap">
+        <div id="death-bar-track"><div id="death-bar-fill"></div></div>
+        <span id="death-bar-pct">0%</span>
+        <span id="death-bar-skull">☠</span>
+    </div>
+    <div class="top-bar">
+        <div class="stat-group"><span class="label">Tiempo</span><span id="txt-time" class="value">00:00</span></div>
+        <div class="stat-group"><span class="label">Nivel</span>  <span id="txt-lvl"  class="value">1</span></div>
+        <div class="stat-group"><span class="label">Kills</span>  <span id="txt-kills" class="value">0</span></div>
+    </div>
+    <div id="combo-badge">
+        <div style="font-size:8px;color:var(--primary);letter-spacing:3px;font-family:'Orbitron',sans-serif">COMBO</div>
+        <div id="txt-combo" class="value" style="font-size:24px">x1</div>
+    </div>
+    <div id="boss-hud">
+        <div id="boss-name">&#9888; JEFE &#9888;</div>
+        <div id="boss-bar-bg"><div id="boss-bar-fill"></div></div>
+    </div>
+</div>
+
+<div id="frenetic-badge">⚡ FRENÉTICO</div>
+    <div id="hud-player-name" class="hud-player-name" style="display:none"></div>
+<div id="buff-bar"></div>
+<div id="hp-container"><div id="hp-fill"></div></div>
+<div id="hp-label">HP</div>
+<div id="weapon-bar"></div>
+
+<div id="minimap">
+    <canvas id="minimap-canvas" width="110" height="110"></canvas>
+    <div id="minimap-label">RADAR</div>
+</div>
+
+<div id="achievement-popup">
+    <div class="ach-header">
+        <span class="ach-icon" id="ach-icon">&#127942;</span>
+        <div>
+            <div class="ach-title">LOGRO DESBLOQUEADO</div>
+            <div class="ach-name" id="ach-name"></div>
+        </div>
+        <span class="ach-counter" id="ach-counter">0/12</span>
+    </div>
+    <div class="ach-desc" id="ach-desc"></div>
+</div>
+
+<button id="pause-btn">&#9208; PAUSA</button>
+
+<div id="mobile-ui">
+    <div class="joystick-area" id="joy-base"><div id="stick"></div></div>
+    <div class="action-btn" id="btn-burst">ULTRA<br>&#9889;</div>
+</div>
+
+<!-- CHARACTER SELECT -->
+<div id="start-screen" class="overlay">
+    <div class="title-main">&#9789; SHADOW SURVIVOR</div>
+    <div class="title-sub">ELIGE TU GUERRERO</div>
+    <div class="char-grid" id="char-selection"></div>
+    <button class="btn-main" id="btn-start-game">&#9876; &nbsp; COMBATIR</button>
+    <div id="mode-selector">
+        <button class="mode-btn mode-active" id="mode-normal" data-mode="normal">&#9679; NORMAL</button>
+        <button class="mode-btn" id="mode-frenetic" data-mode="frenetic">&#9889; FRENÉTICO</button>
+    </div>
+    <button class="btn-secondary lb-trigger-btn" id="btn-show-lb">🏆 &nbsp; RANKING</button>
+    <div style="margin-top:14px;font-size:10px;color:#332233;letter-spacing:2px;font-family:'Orbitron',sans-serif">WASD / FLECHAS &middot; ESPACIO: ULTRA</div>
+</div>
+
+<!-- LEVEL UP -->
+<div id="levelup-screen" class="overlay">
+    <div style="font-family:'Orbitron',sans-serif;color:var(--accent);margin-bottom:6px;font-size:clamp(11px,3vw,14px);letter-spacing:5px;text-shadow:0 0 20px var(--accent)">&#11014; SUBISTE DE NIVEL</div>
+    <div id="txt-levelup-num" style="font-family:'Orbitron',sans-serif;color:#554466;font-size:11px;margin-bottom:20px;letter-spacing:3px">ELIGE UNA MEJORA</div>
+    <div class="upgrade-container" id="upgrade-options"></div>
+</div>
+
+<!-- PAUSE -->
+<div id="pause-screen">
+    <h2>&#9208; PAUSA</h2>
+    <div class="pause-stats" id="pause-stats"></div>
+    <div class="pause-ach-section">
+        <div class="pause-ach-header" id="pause-ach-count">0 / 12 LOGROS</div>
+        <div class="pause-ach-gallery" id="pause-ach-gallery"></div>
+    </div>
+    <div class="pause-btns">
+        <button class="btn-secondary" onclick="Game.togglePause()">&#9654; REANUDAR</button>
+        <button class="btn-secondary lb-trigger-btn" id="pause-show-lb">🏆 RANKING</button>
+        <button class="btn-secondary" onclick="location.reload()">&#8635; REINICIAR</button>
+        <button class="btn-secondary" onclick="Auth.logout()" style="font-size:9px;color:#443344;">↩ CAMBIAR USUARIO</button>
+    </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameover-screen" class="overlay">
+    <div style="font-family:'Orbitron',sans-serif;color:var(--primary);font-size:clamp(22px,7vw,44px);font-weight:900;text-shadow:0 0 40px rgba(255,34,85,0.4)">&#128128; CA&#205;STE</div>
+    <div id="game-over-stats"></div>
+    <div class="gameover-btns">
+        <button class="btn-main" onclick="location.reload()">&#9876; REINTENTAR</button>
+        <button class="btn-secondary lb-trigger-btn" id="go-show-lb">🏆 RANKING</button>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script>
+// Wire login UI — runs after auth.js is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    const btn   = document.getElementById('login-btn');
+    const input = document.getElementById('login-input');
+    if (btn)   btn.onclick   = () => Auth.login(input.value);
+    if (input) input.onkeydown = e => { if (e.key === 'Enter') Auth.login(input.value); };
+});
+</script>
+<script src="js/config.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/data.js"></script>
+<script src="js/entity.js"></script>
+<script src="js/player.js"></script>
+<script src="js/enemy.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/spatial.js"></script>
+<script src="js/intro.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
