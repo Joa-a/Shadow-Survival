@@ -1,16 +1,13 @@
 // ── auth.js ── Login, Sesión & Ranking Global (Cloudflare Worker) ──────────
-// ⚙️  ÚNICA LÍNEA QUE TIENES QUE CAMBIAR:
-//     Pega aquí la URL de tu Worker después de hacer el deploy.
-//     Ejemplo: 'https://shadow-survivor.tunombre.workers.dev'
-// ─────────────────────────────────────────────────────────────────────────
 'use strict';
 
 const Auth = {
 
     API_URL: 'https://shadow-survival-ranking.eljefekiller2-0.workers.dev',
 
-    STORAGE_KEY: 'ss_session',
-    currentUser: null,
+    STORAGE_KEY:  'ss_session',
+    LOCKED_KEY:   'ss_account_locked',  // once set, this device owns this account forever
+    currentUser:  null,
     _board:       [],
     _boardLoaded: false,
 
@@ -27,15 +24,42 @@ const Auth = {
             if (saved) this.currentUser = JSON.parse(saved);
         } catch(e) { this.currentUser = null; }
 
-        if (this.currentUser) { this._showLoggedIn(); this._hideLoginScreen(); }
-        else                  { this._showLoginScreen(); }
+        if (this.currentUser) {
+            this._showLoggedIn();
+            this._hideLoginScreen();
+        } else {
+            this._showLoginScreen();
+        }
     },
 
     // ── LOGIN UI ───────────────────────────────────────────────
     _showLoginScreen() {
         const el = document.getElementById('login-screen');
         if (el) el.style.display = 'flex';
-        setTimeout(() => { const i = document.getElementById('login-input'); if(i) i.focus(); }, 120);
+        setTimeout(() => {
+            const i = document.getElementById('login-input');
+            if (i) i.focus();
+        }, 120);
+
+        const input = document.getElementById('login-input');
+        const pin   = document.getElementById('login-pin');
+        const btn   = document.getElementById('login-btn');
+
+        // Only allow digits in PIN field
+        if (pin) {
+            pin.addEventListener('input', () => {
+                pin.value = pin.value.replace(/\D/g, '').slice(0, 6);
+            });
+            pin.addEventListener('keydown', e => { if (e.key === 'Enter') btn && btn.click(); });
+        }
+        if (input) {
+            input.addEventListener('keydown', e => { if (e.key === 'Enter') pin && pin.focus(); });
+        }
+        if (btn) {
+            btn.addEventListener('click', () => {
+                this.attemptLogin(input ? input.value : '', pin ? pin.value : '');
+            });
+        }
     },
 
     _hideLoginScreen() {
@@ -46,20 +70,116 @@ const Auth = {
 
     _loginError(msg) {
         const el = document.getElementById('login-error');
-        if (el) { el.textContent = msg; el.style.opacity = '1'; }
+        if (el) {
+            el.textContent = msg;
+            el.style.opacity = '1';
+        }
+        const btn = document.getElementById('login-btn');
+        if (btn) { btn.disabled = false; btn.textContent = '⚔️  ENTRAR'; }
     },
 
-    login(name) {
-        name = (name || '').trim().replace(/[<>"'&]/g, '').slice(0, 16);
-        if (name.length < 2) { this._loginError('Mínimo 2 caracteres'); return; }
-        this.currentUser = { name, avatar: this._pickAvatar(name), joinedAt: Date.now() };
+    _loginLoading(msg) {
+        const btn = document.getElementById('login-btn');
+        if (btn) { btn.disabled = true; btn.textContent = msg || '⏳ Verificando…'; }
+        const el = document.getElementById('login-error');
+        if (el) el.textContent = '';
+    },
+
+    // ── ATTEMPT LOGIN / REGISTER ───────────────────────────────
+    async attemptLogin(rawName, rawPin) {
+        const name = (rawName || '').trim().replace(/[<>"'&]/g, '').slice(0, 16);
+        const pin  = (rawPin  || '').replace(/\D/g, '').slice(0, 6);
+
+        if (name.length < 2) { this._loginError('Mínimo 2 caracteres en el nombre'); return; }
+        if (!/^[a-zA-Z0-9 _\-áéíóúüñÁÉÍÓÚÜÑ]+$/.test(name)) {
+            this._loginError('Solo letras, números y guiones en el nombre'); return;
+        }
+        if (pin.length !== 6) { this._loginError('PIN debe tener exactamente 6 dígitos'); return; }
+
+        this._loginLoading('⏳ Verificando…');
+        const avatar = this._pickAvatar(name);
+
+        // Try server
+        if (this._configured) {
+            try {
+                const res = await fetch(`${this.API_URL}/register`, {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ name, pin, avatar }),
+                });
+                const data = await res.json();
+
+                if (!data.ok) {
+                    // Name taken — try to login with PIN
+                    const res2 = await fetch(`${this.API_URL}/recover`, {
+                        method:  'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body:    JSON.stringify({ name, pin }),
+                    });
+                    const data2 = await res2.json();
+                    if (data2.ok) {
+                        this._lockAccount(name, data2.avatar || avatar, pin);
+                        this._finishLogin(name, data2.avatar || avatar);
+                        return;
+                    }
+                    this._loginError(data2.error || data.error || 'Nombre tomado o PIN incorrecto');
+                    return;
+                }
+
+                // New account registered
+                this._lockAccount(name, avatar, pin);
+                this._finishLogin(name, avatar);
+                return;
+
+            } catch(err) {
+                console.warn('[Auth] Server unreachable, local fallback:', err.message);
+            }
+        }
+
+        // Offline fallback — one account per device, PIN stored locally
+        const locked = this._getLockedAccount();
+        if (locked) {
+            if (locked.name.toLowerCase() !== name.toLowerCase()) {
+                this._loginError(`Este dispositivo ya tiene la cuenta "${locked.name}"`);
+                return;
+            }
+            if (locked.pin !== pin) {
+                this._loginError('PIN incorrecto');
+                return;
+            }
+            this._finishLogin(name, locked.avatar || avatar);
+            return;
+        }
+        // First time offline
+        this._lockAccount(name, avatar, pin);
+        this._finishLogin(name, avatar);
+    },
+
+    _finishLogin(name, avatar) {
+        this.currentUser = { name, avatar, joinedAt: Date.now() };
         try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.currentUser)); } catch(e) {}
         this._showLoggedIn();
         this._hideLoginScreen();
     },
 
+    // ── ACCOUNT LOCK (one account per device) ─────────────────
+    // Once a name is registered on this device it can never be changed.
+    _lockAccount(name, avatar, pin) {
+        const data = { name, avatar, pin: pin || '', lockedAt: Date.now() };
+        try { localStorage.setItem(this.LOCKED_KEY, JSON.stringify(data)); } catch(e) {}
+    },
+
+    _getLockedAccount() {
+        try {
+            const raw = localStorage.getItem(this.LOCKED_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch(e) { return null; }
+    },
+
     logout() {
-        this.currentUser = null; this._board = []; this._boardLoaded = false;
+        // NOTE: logout does NOT remove the lock — the name stays reserved forever on this device.
+        this.currentUser = null;
+        this._board = []; this._boardLoaded = false;
         try { localStorage.removeItem(this.STORAGE_KEY); } catch(e) {}
         location.reload();
     },
@@ -70,16 +190,25 @@ const Auth = {
             el.textContent   = this.currentUser.avatar + ' ' + this.currentUser.name;
             el.style.display = 'block';
         }
+
+        // If device has a locked account, pre-fill input and disable it
+        const locked = this._getLockedAccount();
+        const input  = document.getElementById('login-input');
+        if (locked && input) {
+            input.value    = locked.name;
+            input.disabled = true;
+            input.title    = 'Esta cuenta está vinculada a este dispositivo';
+        }
     },
 
     _pickAvatar(name) {
         const a = ['👤','🧙','⚔️','🏹','🔮','👁️','💀','🌙','⚡','🔥','❄️','🌀','🛡️','🗡️'];
-        let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
+        let h = 0;
+        for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
         return a[h % a.length];
     },
 
     // ── SUBMIT SCORE ───────────────────────────────────────────
-    // DEBE usarse con await: const rank = await Auth.submitScore({...})
     async submitScore({ timeSec, kills, level, mode }) {
         if (!this.currentUser) return null;
 
@@ -102,18 +231,8 @@ const Auth = {
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                // Worker devuelve: { ok: true, rank: 3, board: [...] }
-                // Worker devuelve: { saved: true, rank: 3, total: 42 }
-                // O si no es personal best: { saved: false, best: X, sent: Y }
-                if (data.saved === true && typeof data.rank === 'number') {
-                    return data.rank;
-                }
-                if (data.saved === false) {
-                    // No batió su récord — buscar su rank actual en el board local
-                    // (el Worker no devuelve rank en este caso)
-                    console.info('[Auth] Score no superó personal best, rank no actualizado');
-                    return null;
-                }
+                if (data.saved === true && typeof data.rank === 'number') return data.rank;
+                if (data.saved === false) return null;
                 throw new Error('Respuesta inesperada: ' + JSON.stringify(data).slice(0, 80));
             } catch(err) {
                 console.warn('[Auth] Worker error, usando local:', err.message);
@@ -149,10 +268,9 @@ const Auth = {
                 const res = await fetch(`${this.API_URL}/scores`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                // Acepta: { ok:true, scores:[...] }  O  array directo [...]
-                board = Array.isArray(data)         ? data
-                      : Array.isArray(data.scores)  ? data.scores
-                      : Array.isArray(data.board)   ? data.board
+                board = Array.isArray(data)        ? data
+                      : Array.isArray(data.scores) ? data.scores
+                      : Array.isArray(data.board)  ? data.board
                       : [];
                 isGlobal = true;
                 this._board = board; this._boardLoaded = true;
@@ -179,9 +297,9 @@ const Auth = {
             return;
         }
 
-        const myName = this.currentUser?.name;
-        const medals = ['🥇','🥈','🥉'];
-        const myRank = board.findIndex(e => e.name === myName) + 1;
+        const myName  = this.currentUser?.name;
+        const medals  = ['🥇','🥈','🥉'];
+        const myRank  = board.findIndex(e => e.name === myName) + 1;
 
         const header = `<div class="lb-total">
             ${board.length} guerrero${board.length!==1?'s':''} ·

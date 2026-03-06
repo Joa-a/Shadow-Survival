@@ -233,6 +233,9 @@ const Game = {
         } else if (charId === 'rogue') {
             // ── KAEL ULTRA: Sombra Letal ──────────────────────────────
             this._ultraKael();
+        } else if (charId === 'cleric') {
+            // ── ELORA ULTRA: Erupción Divina ──────────────────────────
+            this._ultraElora(dmgBase);
         } else {
             // ── DEFAULT ULTRA: radial bolt burst ────────────────────
             const N = 8 + this.burstLevel * 2;
@@ -414,6 +417,44 @@ const Game = {
                 '#44ffcc', 5
             );
         }
+    },
+
+    _ultraElora(dmgBase) {
+        const dmg      = dmgBase * 0.7;       // reduced damage per hit
+        const range    = 160 + this.burstLevel * 20;
+        const numCones = 8;                   // 8 directions = full 360°
+        const coneArc  = (Math.PI * 2) / numCones;
+
+        // Store active ultra cones for rendering
+        this.eloraUltraCones = [];
+        for (let i = 0; i < numCones; i++) {
+            this.eloraUltraCones.push({
+                angle:   (Math.PI * 2 / numCones) * i,
+                arc:     coneArc * 0.9,
+                range,
+                phase:   0,
+                hitSet:  new Set(),
+                dmg,
+            });
+        }
+        this.eloraUltraTimer = 0.35;  // animation duration
+
+        // Launch spears in 8 directions (reduced damage)
+        const spearDmg = dmgBase * 0.45;
+        for (let i = 0; i < numCones; i++) {
+            const a = (Math.PI * 2 / numCones) * i;
+            this.projectiles.push({
+                type:  'holySpear',
+                x: this.player.x, y: this.player.y,
+                vx: Math.cos(a) * 420, vy: Math.sin(a) * 420,
+                r: 7, life: 1.8, dmg: spearDmg,
+                color: '#ffffaa',
+            });
+        }
+
+        this.shake = 14;
+        // Holy sound burst
+        AudioEngine.sfxLevel();
     },
 
     _buildLightningSegments(tx, ty) {
@@ -1155,6 +1196,35 @@ const Game = {
             }
         }
 
+        // Elora ultra cones tick
+        if (this.eloraUltraCones && this.eloraUltraCones.length) {
+            this.eloraUltraTimer = Math.max(0, (this.eloraUltraTimer || 0) - dt);
+            for (const cone of this.eloraUltraCones) {
+                cone.phase = Math.min(1, cone.phase + dt * 5.5);
+                if (cone.phase < 0.7) {
+                    for (const e of this.enemies) {
+                        if (e.dead || cone.hitSet.has(e)) continue;
+                        const dx = e.x - this.player.x, dy = e.y - this.player.y;
+                        if (Math.hypot(dx, dy) > cone.range + e.r) continue;
+                        let diff = Math.atan2(dy, dx) - cone.angle;
+                        while (diff >  Math.PI) diff -= Math.PI*2;
+                        while (diff < -Math.PI) diff += Math.PI*2;
+                        if (Math.abs(diff) < cone.arc / 2) {
+                            const crit = Math.random() < 0.2;
+                            const d = cone.dmg * (crit ? 2.2 : 1);
+                            e.takeDamage(d);
+                            const n = M.norm(dx, dy);
+                            e.knockback.x = n.x * 280; e.knockback.y = n.y * 280;
+                            this.spawnParticle(e.x, e.y, '#ffffaa', 6);
+                            this.spawnText(e.x, e.y, Math.floor(d), crit);
+                            cone.hitSet.add(e);
+                        }
+                    }
+                }
+            }
+            if (this.eloraUltraTimer <= 0) this.eloraUltraCones = null;
+        }
+
         // Ultra whips tick (Alaric ultra)
         if (this.ultraWhips && this.ultraWhips.length) {
             for (let wi = this.ultraWhips.length - 1; wi >= 0; wi--) {
@@ -1745,6 +1815,36 @@ const Game = {
             ctx.restore();
         });
 
+        // Elora ultra cones rendering
+        if (this.eloraUltraCones) {
+            const cx = canvas.width/2, cy = canvas.height/2;
+            this.eloraUltraCones.forEach(cone => {
+                const alpha = Math.max(0, 1 - cone.phase);
+                const r2    = cone.range * (0.3 + cone.phase * 0.7);
+                const a1    = cone.angle - cone.arc / 2;
+                const a2    = cone.angle + cone.arc / 2;
+                ctx.save();
+                // Cone gradient fill
+                const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r2);
+                cg.addColorStop(0,   `rgba(255,255,200,${alpha * 0.7})`);
+                cg.addColorStop(0.6, `rgba(255,220,80,${alpha * 0.45})`);
+                cg.addColorStop(1,   `rgba(255,180,0,0)`);
+                ctx.fillStyle   = cg;
+                ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 18 * alpha;
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, r2, a1, a2);
+                ctx.closePath(); ctx.fill();
+                // Cone edge lines
+                ctx.strokeStyle = `rgba(255,255,150,${alpha * 0.6})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a1)*r2, cy+Math.sin(a1)*r2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a2)*r2, cy+Math.sin(a2)*r2); ctx.stroke();
+                ctx.restore();
+            });
+        }
+
         // Zale ultra — lock-on lines from player to each zaleUltra projectile
         if (this.zaleUltraTimer > 0) {
             const px2 = this.player.x - off.x + canvas.width/2;
@@ -2089,8 +2189,25 @@ const Game = {
 };
 
 // Boot — show login first, then game init
-if (typeof Auth !== 'undefined') {
-    Auth.init();
-} else {
-    Game.init();
-}
+document.addEventListener('DOMContentLoaded', () => {
+    // Pre-fill input if device already has a locked account
+    if (typeof Auth !== 'undefined') {
+        const locked = Auth._getLockedAccount();
+        if (locked) {
+            const input = document.getElementById('login-input');
+            const hint  = document.getElementById('login-hint');
+            const sub   = document.getElementById('login-sub');
+            if (input) {
+                input.value       = locked.name;
+                input.disabled    = true;
+                input.style.color = '#aaccff';
+                input.title       = 'Cuenta vinculada a este dispositivo';
+            }
+            if (hint) hint.textContent = `✅ Cuenta "${locked.name}" — introduce tu PIN de 6 dígitos`;
+            if (sub)  sub.textContent  = 'BIENVENIDO DE VUELTA';
+        }
+        Auth.init();
+    } else {
+        Game.init();
+    }
+});

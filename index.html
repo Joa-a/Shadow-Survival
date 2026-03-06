@@ -32,15 +32,21 @@
     <div class="login-box">
         <div class="login-moon">🌙</div>
         <div class="login-title">SHADOW SURVIVOR</div>
-        <div class="login-sub">INICIA SESIÓN PARA GUARDAR TU RÉCORD</div>
+        <div id="login-sub" class="login-sub">ELIGE TU NOMBRE DE GUERRERO</div>
         <div class="login-field-wrap">
             <input id="login-input" class="login-input" type="text"
-                   maxlength="16" placeholder="Tu nombre de guerrero…"
+                   maxlength="16" placeholder="Tu nombre único…"
                    autocomplete="off" spellcheck="false"/>
+        </div>
+        <div class="login-field-wrap" style="margin-top:10px;">
+            <input id="login-pin" class="login-input" type="password"
+                   maxlength="6" placeholder="PIN de 6 dígitos"
+                   autocomplete="new-password" inputmode="numeric"
+                   style="letter-spacing:6px; font-size:20px; text-align:center;"/>
         </div>
         <div id="login-error" class="login-error"></div>
         <button class="btn-main login-btn" id="login-btn">⚔️ &nbsp; ENTRAR</button>
-        <div class="login-hint">Solo necesitas un nombre · Sin contraseña</div>
+        <div class="login-hint" id="login-hint">Nombre único · PIN de 6 dígitos para recuperar tu cuenta</div>
     </div>
 </div>
 

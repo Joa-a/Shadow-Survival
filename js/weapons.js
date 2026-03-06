@@ -1154,6 +1154,29 @@ function drawProjectile(ctx, p, off) {
     // Whip is handled entirely by Weapon.draw() — nothing here
     case 'whip': break;
 
+    // ── Holy Spear (Elora ultra) ──────────────────────────────────
+    case 'holySpear': {
+        const progress = 1 - (p.life / 1.8);
+        const alpha    = Math.min(1, p.life / 0.3);
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(Math.atan2(p.vy, p.vx));
+        // Shaft
+        ctx.globalAlpha = alpha;
+        ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 14;
+        ctx.fillStyle   = '#ffffcc';
+        ctx.fillRect(-18, -2.5, 36, 5);
+        // Tip
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.moveTo(18, 0); ctx.lineTo(10, -5); ctx.lineTo(10, 5); ctx.closePath(); ctx.fill();
+        // Tail glow
+        ctx.fillStyle = '#ffdd44';
+        ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(-18, 0, 4, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+        break;
+    }
+
     // ── Generic fallback ──────────────────────────────────────────
     default: {
         ctx.shadowColor = p.color || '#ffdd44';

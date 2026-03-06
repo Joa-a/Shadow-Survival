@@ -68,7 +68,7 @@ async function handle(request, env) {
 
     const entry = {
       name,
-      avatar: String(body.avatar || '👤').slice(0, 4),
+      avatar: String(body.avatar || '👤').slice(0, 6),
       time:   Math.max(0, Math.floor(Number(body.time)  || 0)),
       kills:  Math.max(0, Math.floor(Number(body.kills) || 0)),
       level:  Math.max(1, Math.floor(Number(body.level) || 1)),
@@ -95,5 +95,77 @@ async function handle(request, env) {
     return json({ saved: !prev || entry.time > prev.time, rank, total: board2.length });
   }
 
-  return json({ ok: true, endpoints: ['GET /scores', 'POST /scores'] });
+  // POST /register — check + reserve username with PIN
+  if (method === 'POST' && path === '/register') {
+    if (!env.SCORES) return json({ error: 'KV no configurado.' }, 503);
+
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ error: 'JSON invalido' }, 400); }
+
+    const raw  = String(body.name || '').trim().replace(/[<>"'&]/g, '');
+    const name = raw.slice(0, 16);
+    if (name.length < 2) return json({ ok: false, error: 'Mínimo 2 caracteres' });
+
+    const pin = String(body.pin || '').replace(/\D/g,'').slice(0, 6);
+    if (pin.length !== 6) return json({ ok: false, error: 'PIN debe ser 6 dígitos' });
+
+    const regKey = 'user:' + name.toLowerCase().replace(/\s+/g,'_');
+    const exists = await env.SCORES.get(regKey);
+    if (exists) return json({ ok: false, error: 'Ese nombre ya está tomado ⚔️' });
+
+    const pinHash = await hashPin(pin, name);
+    const userData = {
+      name,
+      avatar:       body.avatar || '👤',
+      pinHash,
+      registeredAt: new Date().toISOString(),
+    };
+    await env.SCORES.put(regKey, JSON.stringify(userData));
+    return json({ ok: true, name, avatar: userData.avatar });
+  }
+
+  // POST /recover — login from new device with name + PIN
+  if (method === 'POST' && path === '/recover') {
+    if (!env.SCORES) return json({ ok: false, error: 'KV no configurado.' });
+
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ error: 'JSON invalido' }, 400); }
+
+    const name   = String(body.name || '').trim().slice(0, 16);
+    const pin    = String(body.pin  || '').replace(/\D/g,'').slice(0, 6);
+    const regKey = 'user:' + name.toLowerCase().replace(/\s+/g,'_');
+
+    const raw = await env.SCORES.get(regKey);
+    if (!raw) return json({ ok: false, error: 'Cuenta no encontrada' });
+
+    const userData = JSON.parse(raw);
+    const pinHash  = await hashPin(pin, name);
+
+    if (pinHash !== userData.pinHash)
+      return json({ ok: false, error: 'PIN incorrecto ❌' });
+
+    return json({ ok: true, name: userData.name, avatar: userData.avatar });
+  }
+
+  // POST /check-name — availability check
+  if (method === 'POST' && path === '/check-name') {
+    if (!env.SCORES) return json({ available: true });
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ error: 'JSON invalido' }, 400); }
+    const regKey = 'user:' + String(body.name||'').trim().slice(0,16).toLowerCase().replace(/\s+/g,'_');
+    const exists = await env.SCORES.get(regKey);
+    return json({ available: !exists });
+  }
+
+  return json({ ok: true, endpoints: ['GET /scores', 'POST /scores', 'POST /register', 'POST /recover', 'POST /check-name'] });
+}
+
+// Simple SHA-256 PIN hash using Web Crypto (available in Workers)
+async function hashPin(pin, salt) {
+  const data    = new TextEncoder().encode(pin + ':' + salt.toLowerCase());
+  const hashBuf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
