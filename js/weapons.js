@@ -586,7 +586,7 @@ const WeaponFactory = {
     update(dt) {
         if (this.noTargetFlash > 0) this.noTargetFlash -= dt * 2.5;
 
-        this.timer -= dt;
+        this.timer -= dt * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.timer > 0 || !Game.enemies.length) return;
 
         this.timer = this.cooldown;
@@ -665,7 +665,7 @@ const WeaponFactory = {
     }
 
     update(dt) {
-        this.timer -= dt;
+        this.timer -= dt * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.timer > 0) return;
         this.timer = this.cooldown;
 
@@ -706,7 +706,7 @@ const WeaponFactory = {
         this.flames = [];
     }
     update(dt) {
-        this.timer -= dt;
+        this.timer -= dt * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.timer <= 0) {
             this.timer = this.cooldown;
             this.flames.push({
@@ -796,7 +796,7 @@ const WeaponFactory = {
         }
 
         // Main chain lightning
-        this.timer -= dt;
+        this.timer -= dt * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.timer > 0 || !Game.enemies.length) return;
         this.timer = this.cooldown;
 
@@ -888,7 +888,7 @@ const WeaponFactory = {
             }
         }
 
-        this.timer -= dt;
+        this.timer -= dt * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.swingActive) {
             this.phase += dt * 4.0;
             if (this.phase >= 1.0) { this.swingActive = false; this.phase = 0; return; }
@@ -971,7 +971,7 @@ const WeaponFactory = {
         this.grounds     = []; // consecrated zones
     }
     update(dt) {
-        this.timer -= dt;
+        this.timer -= dt * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
 
         // Update existing consecrated grounds
         for (let i = this.grounds.length-1; i >= 0; i--) {

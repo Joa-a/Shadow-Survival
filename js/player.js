@@ -17,6 +17,10 @@ class Player extends Entity {
         this.activeBuffs = { shield: 0, speed: 0, damage: 0 };
         this.trail       = [];
         this.vampireKillTracker = 0;
+        // Kael ultra buff timers — initialized to 0 so comparisons are safe
+        this.kaelUltraDmgReduct = 0;
+        this.kaelUltraAttack    = 0;
+        this.kaelUltraSpeed     = 0;
         this.addWeapon(charData.weapon);
     }
 

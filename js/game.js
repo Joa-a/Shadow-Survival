@@ -537,6 +537,13 @@ const Game = {
         this.lifeOrbs = []; this.goldTimer = 0;
         this._wisps = null;
         this.nextKillMilestone = 0;
+        // Ultra/boss state reset
+        this.bossArena       = null;  this.bossArenaAlpha = 0;
+        this.bossSpawning    = null;
+        this.ultraWhips      = [];
+        this.eloraUltraCones = null;  this.eloraUltraTimer = 0;
+        this.zaleUltraTimer  = 0;
+        this._fogDmgFlash    = 0;
         this._updateBurstUI();
         this.state = 'PLAY';
         document.getElementById('start-screen').style.display    = 'none';
@@ -1019,7 +1026,7 @@ const Game = {
         } else { badge.style.display = 'none'; }
 
         // Boss summoning ritual countdown (3s before boss goes active)
-        if (this.bossSpawning) {
+        if (this.bossSpawning && this.state === 'PLAY') {
             this.bossSpawning.timer -= dt;
             // Shake pulses every 0.5s during ritual
             if (Math.floor(this.bossSpawning.timer * 2) !== Math.floor((this.bossSpawning.timer + dt) * 2)) {
@@ -1142,7 +1149,7 @@ const Game = {
             this.lastMinute = curMin;
             // Normal: boss every 3 min. Frenético: every 2 min
             const bossInterval = isFrenetic ? 2 : 3;
-            if (this.lastMinute % bossInterval === 0) this.spawnEnemy(true);
+            if (this.lastMinute % bossInterval === 0 && !this.currentBoss && !this.bossSpawning) this.spawnEnemy(true);
         }
 
         if (this.comboTimer > 0) { this.comboTimer -= dt; if (this.comboTimer <= 0) this.combo = 0; }
@@ -1536,6 +1543,17 @@ const Game = {
                     const pull = (1 - pd/300) * 55 * (1/60);
                     this.player.x += (pdx/pd) * pull;
                     this.player.y += (pdy/pd) * pull;
+                    // Clamp player to arena wall after pull
+                    if (this.bossArena) {
+                        const _ar = this.bossArena;
+                        const _dx = this.player.x - _ar.x, _dy = this.player.y - _ar.y;
+                        const _d  = Math.sqrt(_dx*_dx+_dy*_dy);
+                        if (_d > _ar.r - this.player.r - 4) {
+                            const _p = _ar.r - this.player.r - 4;
+                            this.player.x = _ar.x + (_dx/_d)*_p;
+                            this.player.y = _ar.y + (_dy/_d)*_p;
+                        }
+                    }
                 }
             }
             ep.x += ep.vx; ep.y += ep.vy; ep.life--;
@@ -2341,7 +2359,10 @@ const Game = {
             const pulse = 0.6 + Math.sin(t2 * 2.4) * 0.4;
             const bCol  = ar.color || '#ff1133';
             ctx.beginPath(); ctx.arc(sx, sy, ar.r, 0, Math.PI * 2);
-            ctx.strokeStyle = bCol + Math.round(0.7 * pulse * fa * 255).toString(16).padStart(2,'0');
+            // Parse hex color to rgba to avoid invalid 9-char CSS color bug
+            const _a4 = Math.round(0.7 * pulse * fa * 255);
+            const _r4 = parseInt(bCol.slice(1,3),16), _g4 = parseInt(bCol.slice(3,5),16), _b4 = parseInt(bCol.slice(5,7),16);
+            ctx.strokeStyle = `rgba(${_r4},${_g4},${_b4},${(_a4/255).toFixed(2)})`;
             ctx.lineWidth = 3;
             ctx.shadowColor = bCol;
             ctx.shadowBlur  = 16;
@@ -2350,7 +2371,8 @@ const Game = {
 
             // Inner glow ring (soft)
             ctx.beginPath(); ctx.arc(sx, sy, ar.r * 0.97, 0, Math.PI * 2);
-            ctx.strokeStyle = bCol + '55';
+            const _r5 = parseInt(bCol.slice(1,3),16), _g5 = parseInt(bCol.slice(3,5),16), _b5 = parseInt(bCol.slice(5,7),16);
+            ctx.strokeStyle = `rgba(${_r5},${_g5},${_b5},0.33)`;
             ctx.lineWidth = 8;
             ctx.stroke();
 
