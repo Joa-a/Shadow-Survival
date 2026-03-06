@@ -1340,6 +1340,46 @@ function drawProjectile(ctx, p, off) {
     case 'whip': break;
 
     // ── Holy Spear (Elora ultra) ──────────────────────────────────
+    case 'poisonArrow': {
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(Math.atan2(p.vy, p.vx));
+        const palpha = Math.min(1, p.life / 0.3);
+        ctx.globalAlpha = palpha;
+
+        // Shaft — dark wood
+        ctx.shadowColor = '#00ff44'; ctx.shadowBlur = 8;
+        ctx.fillStyle   = '#4a3a1a';
+        ctx.fillRect(-14, -2, 26, 4);
+
+        // Poisoned tip — bright green
+        ctx.fillStyle   = '#00ff66';
+        ctx.shadowColor = '#00ff44'; ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.moveTo(12,  0);
+        ctx.lineTo(6,  -4);
+        ctx.lineTo(6,   4);
+        ctx.closePath(); ctx.fill();
+
+        // Glowing poison drip on tip
+        ctx.globalAlpha = palpha * (0.6 + Math.sin(Date.now() * 0.015) * 0.4);
+        ctx.fillStyle   = '#88ffaa';
+        ctx.shadowBlur  = 18;
+        ctx.beginPath(); ctx.arc(10, 0, 3, 0, Math.PI*2); ctx.fill();
+
+        // Tail fletching
+        ctx.globalAlpha = palpha * 0.8;
+        ctx.fillStyle   = '#228844';
+        ctx.shadowBlur  = 0;
+        ctx.beginPath();
+        ctx.moveTo(-14, 0); ctx.lineTo(-10, -5); ctx.lineTo(-8, 0);
+        ctx.moveTo(-14, 0); ctx.lineTo(-10,  5); ctx.lineTo(-8, 0);
+        ctx.fill();
+
+        ctx.restore();
+        break;
+    }
+
     case 'holySpear': {
         const progress = 1 - (p.life / 1.8);
         const alpha    = Math.min(1, p.life / 0.3);

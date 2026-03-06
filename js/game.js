@@ -255,6 +255,9 @@ const Game = {
         } else if (charId === 'cleric') {
             // ── ELORA ULTRA: Erupción Divina ──────────────────────────
             this._ultraElora(dmgBase);
+        } else if (charId === 'hunter') {
+            // ── RYXA ULTRA: Lluvia Venenosa ───────────────────────────
+            this._ultraRyxa(dmgBase);
         } else {
             // ── DEFAULT ULTRA: radial bolt burst ────────────────────
             const N = 8 + this.burstLevel * 2;
@@ -474,6 +477,59 @@ const Game = {
         this.shake = 14;
         // Holy sound burst
         AudioEngine.sfxLevel();
+    },
+
+    _ultraRyxa(dmgBase) {
+        const count   = 10;
+        const dmg     = dmgBase * 0.85;       // per arrow
+        const poisonDmg = dmgBase * 0.12;     // poison tick damage
+
+        // Sort enemies by distance — prioritize nearest
+        const sorted = [...this.enemies]
+            .filter(e => !e.dead)
+            .sort((a, b) =>
+                M.dist(this.player.x, this.player.y, a.x, a.y) -
+                M.dist(this.player.x, this.player.y, b.x, b.y)
+            );
+
+        for (let i = 0; i < count; i++) {
+            setTimeout(() => {
+                if (this.state !== 'PLAY') return;
+
+                // Pick target cycling through nearest enemies
+                const target = sorted.length
+                    ? sorted[i % sorted.length]
+                    : null;
+
+                let ang;
+                if (target && !target.dead) {
+                    // Small spread per arrow so burst looks like a volley
+                    const spread = (Math.random() - 0.5) * 0.22;
+                    ang = M.angle(this.player.x, this.player.y, target.x, target.y) + spread;
+                } else {
+                    ang = (Math.PI * 2 / count) * i;
+                }
+
+                // Muzzle particle
+                this.spawnParticle(
+                    this.player.x + Math.cos(ang) * 22,
+                    this.player.y + Math.sin(ang) * 22,
+                    '#44ff88', 3
+                );
+
+                this.projectiles.push({
+                    type:       'poisonArrow',
+                    x: this.player.x, y: this.player.y,
+                    vx: Math.cos(ang) * 600, vy: Math.sin(ang) * 600,
+                    r: 6, life: 1.6, dmg,
+                    poison: true,
+                    poisonDmg,
+                    color: '#44ff44',
+                });
+            }, i * 75);
+        }
+
+        this.shake = 10;
     },
 
     _buildLightningSegments(tx, ty) {
@@ -1280,6 +1336,14 @@ const Game = {
 
         // Stun tick — restore enemy speed after stun expires
         for (const e of this.enemies) {
+            // Poison DOT tick
+            if (e._poisonTimer > 0) {
+                e._poisonTimer -= dt;
+                e.hp -= (e._poisonDmg || 0) * dt;
+                e.flash = Math.max(e.flash || 0, 0.06);
+                if (e._poisonTimer <= 0) e._poisonTimer = 0;
+            }
+
             if (e._stunTimer > 0) {
                 e._stunTimer -= dt;
                 if (e._stunTimer <= 0) {
@@ -1500,9 +1564,14 @@ const Game = {
                         const ic  = Math.random() < calcCritChance(wLv, this.combo);
                         const dmg = p.dmg * (ic ? calcCritMult(wLv) : 1);
                         e.takeDamage(dmg);
+                        // Poison arrow — apply DOT
+                        if (p.poison && p.poisonDmg) {
+                            e._poisonTimer = 3.0;
+                            e._poisonDmg   = p.poisonDmg;
+                        }
                         AudioEngine.sfxHit();
                         this.spawnText(e.x, e.y, Math.floor(dmg), ic);
-                        this.spawnParticle(e.x, e.y, e.color, 4);
+                        this.spawnParticle(e.x, e.y, p.poison ? '#44ff88' : e.color, 4);
                         // Scaled knockback
                         const kb = calcKnockback(dmg, e.maxHp);
                         const nd = M.norm(p.x - e.x, p.y - e.y);

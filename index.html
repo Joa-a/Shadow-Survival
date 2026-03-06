@@ -175,15 +175,6 @@
 </div>
 
 <script src="js/auth.js"></script>
-<script>
-// Wire login UI — runs after auth.js is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    const btn   = document.getElementById('login-btn');
-    const input = document.getElementById('login-input');
-    if (btn)   btn.onclick   = () => Auth.login(input.value);
-    if (input) input.onkeydown = e => { if (e.key === 'Enter') Auth.login(input.value); };
-});
-</script>
 <script src="js/config.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/utils.js"></script>
