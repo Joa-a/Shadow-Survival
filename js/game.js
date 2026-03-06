@@ -227,6 +227,9 @@ const Game = {
         } else if (charId === 'warrior') {
             // ── ALARIC ULTRA: Tormenta de Látigos ────────────────────
             this._ultraAlaric(dmgBase);
+        } else if (charId === 'mage') {
+            // ── ZALE ULTRA: Frenesi Arcano ────────────────────────────
+            this._ultraZale(dmgBase);
         } else {
             // ── DEFAULT ULTRA: radial bolt burst ────────────────────
             const N = 8 + this.burstLevel * 2;
@@ -324,6 +327,69 @@ const Game = {
         // Deal damage via whip sweep ticks (handled in update)
         this.shake = 14;
         AudioEngine.sfxLevel();
+    },
+
+    _ultraZale(dmgBase) {
+        const dmg       = dmgBase * 1.4;
+        const maxShots  = Math.min(20, 8 + this.burstLevel * 3);  // 8–20 shots
+        const VARIANTS  = ['boltSwirl', 'boltStar', 'boltPulse'];
+
+        // Activate double fire-rate buff
+        this.zaleUltraTimer = 3.0;
+
+        // Sort all enemies by distance, pick up to maxShots targets (repeat closer ones if needed)
+        const sorted = [...this.enemies]
+            .filter(e => !e.dead)
+            .sort((a, b) =>
+                M.dist(this.player.x, this.player.y, a.x, a.y) -
+                M.dist(this.player.x, this.player.y, b.x, b.y)
+            );
+
+        // Build shot list — fill up to maxShots cycling through available enemies
+        const shots = [];
+        for (let i = 0; i < maxShots; i++) {
+            if (sorted.length === 0) break;
+            shots.push(sorted[i % sorted.length]);
+        }
+
+        // Fire each shot with a short stagger (60ms apart) so they stream out
+        shots.forEach((target, i) => {
+            setTimeout(() => {
+                if (this.state !== 'PLAY' || target.dead) return;
+
+                const px  = this.player.x, py = this.player.y;
+                const ang = M.angle(px, py, target.x, target.y);
+
+                // Small random spread so multi-shots to same enemy look different
+                const spread = (Math.random() - 0.5) * 0.18;
+
+                // Muzzle flash particle burst at player position
+                for (let p = 0; p < 4; p++) {
+                    const pa = ang + (Math.random() - 0.5) * 0.8;
+                    this.spawnParticle(
+                        px + Math.cos(ang) * 20,
+                        py + Math.sin(ang) * 20,
+                        '#88aaff', 3
+                    );
+                }
+
+                this.projectiles.push({
+                    type:  VARIANTS[i % 3],
+                    x: px, y: py,
+                    vx: Math.cos(ang + spread) * 580,
+                    vy: Math.sin(ang + spread) * 580,
+                    r: 10, life: 2.4, dmg,
+                    color: '#4488ff',
+                    born:  Date.now(),
+                    zaleUltra: true,   // flag for extra trail rendering
+                    targetId:  target, // track for lock-on line
+                });
+
+                this.shake = Math.max(this.shake, 4);
+            }, i * 65);
+        });
+
+        this.shake = 16;
     },
 
     _buildLightningSegments(tx, ty) {
@@ -1051,6 +1117,11 @@ const Game = {
 
         if (this.shake > 0) this.shake *= 0.86;
 
+        // Zale ultra timer (double fire rate)
+        if (this.zaleUltraTimer > 0) {
+            this.zaleUltraTimer = Math.max(0, this.zaleUltraTimer - dt);
+        }
+
         // Stun tick — restore enemy speed after stun expires
         for (const e of this.enemies) {
             if (e._stunTimer > 0) {
@@ -1651,6 +1722,26 @@ const Game = {
             }
             ctx.restore();
         });
+
+        // Zale ultra — lock-on lines from player to each zaleUltra projectile
+        if (this.zaleUltraTimer > 0) {
+            const px2 = this.player.x - off.x + canvas.width/2;
+            const py2 = this.player.y - off.y + canvas.height/2;
+            this.projectiles.forEach(p => {
+                if (!p.zaleUltra) return;
+                const ex2 = p.x - off.x + canvas.width/2;
+                const ey2 = p.y - off.y + canvas.height/2;
+                ctx.save();
+                ctx.globalAlpha = Math.min(0.35, p.life / 2.4 * 0.35);
+                ctx.strokeStyle = '#4488ff';
+                ctx.lineWidth   = 1;
+                ctx.setLineDash([6, 8]);
+                ctx.beginPath(); ctx.moveTo(px2, py2); ctx.lineTo(ex2, ey2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
+            });
+        }
 
         // Ultra whips render (Alaric)
         if (this.ultraWhips && this.ultraWhips.length) {

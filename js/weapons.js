@@ -225,7 +225,9 @@ const WeaponFactory = {
 'MagicWand': class extends Weapon {
     constructor(p) { super(p, 'MagicWand', 15, 0.95); }
     update(dt) {
-        this.timer -= dt;
+        // Zale ultra: double fire rate
+        const speedMult = (Game.zaleUltraTimer > 0) ? 2 : 1;
+        this.timer -= dt * speedMult;
         if (this.timer > 0 || !Game.enemies.length) return;
         this.timer = this.cooldown;
         const sorted = [...Game.enemies].sort((a, b) =>
@@ -1068,21 +1070,84 @@ function drawProjectile(ctx, p, off) {
     // ── BOLT — Magic wand orb ─────────────────────────────────────
     case 'bolt': {
         const r = p.r || 6;
-        // Outer glow
         ctx.globalAlpha = 0.35;
         ctx.fillStyle   = p.color || '#4466ff';
         ctx.shadowColor = p.color || '#4466ff';
         ctx.shadowBlur  = CONFIG.IS_MOBILE ? 10 : 22;
         ctx.beginPath(); ctx.arc(sx, sy, r * 2, 0, Math.PI*2); ctx.fill();
-        // Main orb
         ctx.globalAlpha = 1;
         ctx.fillStyle   = p.color || '#4466ff';
         ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
-        // Core
-        ctx.fillStyle   = '#ffffff';
-        ctx.shadowBlur  = 0;
-        ctx.globalAlpha = 0.65;
+        ctx.fillStyle   = '#ffffff'; ctx.shadowBlur = 0; ctx.globalAlpha = 0.65;
         ctx.beginPath(); ctx.arc(sx, sy, r*0.38, 0, Math.PI*2); ctx.fill();
+        break;
+    }
+
+    // ── BOLTSWIRL — Zale ultra: orbiting ring bolt ────────────────
+    case 'boltSwirl': {
+        const r2 = p.r || 9;
+        const t2 = (Date.now() - (p.born||0)) * 0.006;
+        const col = p.color || '#4466ff';
+        ctx.shadowColor = col; ctx.shadowBlur = 18;
+        // Core orb
+        ctx.globalAlpha = 1; ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(sx, sy, r2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#aabbff'; ctx.globalAlpha = 0.8;
+        ctx.beginPath(); ctx.arc(sx, sy, r2*0.4, 0, Math.PI*2); ctx.fill();
+        // 3 small orbs spiraling around
+        ctx.shadowBlur = 8;
+        for (let i = 0; i < 3; i++) {
+            const a = t2 + (Math.PI*2/3)*i;
+            ctx.globalAlpha = 0.75;
+            ctx.fillStyle = '#88aaff';
+            ctx.beginPath();
+            ctx.arc(sx + Math.cos(a)*(r2+7), sy + Math.sin(a)*(r2+7), 3, 0, Math.PI*2);
+            ctx.fill();
+        }
+        break;
+    }
+
+    // ── BOLTSTAR — Zale ultra: star-shaped burst bolt ─────────────
+    case 'boltStar': {
+        const r3 = p.r || 9;
+        const t3 = (Date.now() - (p.born||0)) * 0.005;
+        const col = p.color || '#4466ff';
+        ctx.shadowColor = col; ctx.shadowBlur = 20;
+        ctx.save(); ctx.translate(sx, sy); ctx.rotate(t3);
+        // Star shape (5 points)
+        ctx.globalAlpha = 1; ctx.fillStyle = col;
+        ctx.beginPath();
+        for (let i = 0; i < 10; i++) {
+            const a = (Math.PI/5)*i - Math.PI/2;
+            const rr = i % 2 === 0 ? r3*1.5 : r3*0.6;
+            i === 0 ? ctx.moveTo(Math.cos(a)*rr, Math.sin(a)*rr)
+                    : ctx.lineTo(Math.cos(a)*rr, Math.sin(a)*rr);
+        }
+        ctx.closePath(); ctx.fill();
+        // Bright center
+        ctx.fillStyle = '#cce0ff'; ctx.globalAlpha = 0.9; ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(0, 0, r3*0.35, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+        break;
+    }
+
+    // ── BOLTPULSE — Zale ultra: pulsing ring bolt ─────────────────
+    case 'boltPulse': {
+        const r4 = p.r || 9;
+        const t4 = (Date.now() - (p.born||0)) * 0.008;
+        const pulse4 = 0.5 + 0.5 * Math.sin(t4 * 4);
+        const col = p.color || '#4466ff';
+        ctx.shadowColor = col; ctx.shadowBlur = 14 + pulse4 * 16;
+        // Pulsing outer ring
+        ctx.globalAlpha = 0.3 + pulse4 * 0.4;
+        ctx.strokeStyle = col; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(sx, sy, r4 + 6 + pulse4 * 8, 0, Math.PI*2); ctx.stroke();
+        // Core
+        ctx.globalAlpha = 1; ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(sx, sy, r4, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 0.5 + pulse4 * 0.5;
+        ctx.fillStyle = '#ddeeff'; ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(sx, sy, r4*0.45, 0, Math.PI*2); ctx.fill();
         break;
     }
 
