@@ -437,9 +437,9 @@ class Enemy extends Entity {
     }
 
     draw(ctx, off) {
-        const sx = this.x - off.x + canvas.width/2;
-        const sy = this.y - off.y + canvas.height/2;
-        if (sx < -80 || sx > canvas.width+80 || sy < -80 || sy > canvas.height+80) return;
+        const sx = this.x - off.x + Game.lw/2;
+        const sy = this.y - off.y + Game.lh/2;
+        if (sx < -80 || sx > Game.lw+80 || sy < -80 || sy > Game.lh+80) return;
 
         ctx.save();
         const t   = Date.now() * 0.001;

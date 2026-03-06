@@ -140,7 +140,7 @@ class Player extends Entity {
 
     draw(ctx, off) {
         ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.translate(Game.lw / 2, Game.lh / 2);
 
         // Trail — blue-white spirit trail
         const tc = this.activeBuffs.speed > 0 ? '#44ffaa' : this.activeBuffs.damage > 0 ? '#ff8844' : '#88aaff';

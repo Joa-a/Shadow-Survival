@@ -3,6 +3,7 @@
 
 const Game = {
     canvas:null, ctx:null, minimapCtx:null,
+    lw: 800, lh: 600,   // logical canvas dimensions — set by resize(), used everywhere
     player:null,
     enemies:[], projectiles:[], gems:[], particles:[], decorations:[],
     texts:[], enemyProjectiles:[], powerUps:[], lightningBolts:[],
@@ -43,27 +44,32 @@ const Game = {
     },
 
     resize() {
-        const W = window.innerWidth;
-        const H = window.innerHeight;
+        const W   = window.innerWidth;
+        const H   = window.innerHeight;
+        const dpr = window.devicePixelRatio || 1;
 
-        // Mobile: zoom OUT aggressively so player sees more world and has time to dodge.
+        // Mobile zoom: player sees more world to dodge
         const minDim = Math.min(W, H);
-        if (minDim < 420) {
-            this.zoom = 0.48;   // small phone — sees ~2x more world
-        } else if (minDim < 520) {
-            this.zoom = 0.52;   // normal phone
-        } else if (minDim < 768) {
-            this.zoom = 0.70;   // tablet
-        } else {
-            this.zoom = 1;      // desktop
-        }
+        if      (minDim < 420) this.zoom = 0.48;
+        else if (minDim < 520) this.zoom = 0.52;
+        else if (minDim < 768) this.zoom = 0.70;
+        else                   this.zoom = 1;
 
-        canvas.width  = Math.round(W / this.zoom);
-        canvas.height = Math.round(H / this.zoom);
+        // Logical draw space (all drawing code uses these dimensions)
+        Game.lw = Math.round(W / this.zoom);
+        Game.lh = Math.round(H / this.zoom);
 
-        // Stretch canvas to fill the real viewport
+        // Physical canvas pixels = logical × DPR → crisp on Retina/HiDPI
+        canvas.width  = Math.round(Game.lw * dpr);
+        canvas.height = Math.round(Game.lh * dpr);
+
+        // CSS size = real viewport
         canvas.style.width  = W + 'px';
         canvas.style.height = H + 'px';
+
+        // Scale so 1 draw unit = 1 logical pixel (DPR handled internally)
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this._dpr = dpr;
     },
 
     // ─────────────────────────── LOADING SCREEN ──────────────────
@@ -525,6 +531,8 @@ const Game = {
         this.hitstopFrames = 0; this.dmgFlash = 0;
         this.deathBar = 0; this.deathBarTimer = 0;
         this._lastDeathBarKills = 0;
+        this._levelupCooldown   = 0;
+        this._gemMergeFrame     = 0;
         this.runes = []; this.runeSpawnTimer = 0;
         this.lifeOrbs = []; this.goldTimer = 0;
         this._wisps = null;
@@ -781,7 +789,7 @@ const Game = {
         // are never visible when they appear.
         // Spawn on a ring far outside the visible area — never on top of player
         // Spawn strictly outside visible area — min dist = screen diagonal + buffer
-        const halfW = canvas.width / 2, halfH = canvas.height / 2;
+        const halfW = Game.lw / 2, halfH = Game.lh / 2;
         const screenCorner = Math.sqrt(halfW * halfW + halfH * halfH);
         const minSpawnDist = screenCorner + 80;
         const maxSpawnDist = minSpawnDist + 200;
@@ -1189,21 +1197,26 @@ const Game = {
             }
         }
 
-        // ── DEATH BAR (Magic Survival) ──────────────────────────────
-        // Fills over time + accelerates with kills. At 100 → elite wave
-        this.deathBar += dt * (2.5 + this.time / 120);
-        // Add a small spike each time we cross a 10-kill milestone (tracked, not per-frame)
-        if (this.kills > (this._lastDeathBarKills || 0) && this.kills % 10 === 0) {
-            this._lastDeathBarKills = this.kills;
-            this.deathBar += 4;
+        // ── DEATH BAR ──────────────────────────────────────────────
+        // Fills slowly over time. At 100 → elite wave. Min 45s between waves.
+        if (!this._deathBarCooldown) this._deathBarCooldown = 0;
+        if (this._deathBarCooldown > 0) {
+            this._deathBarCooldown -= dt;
+        } else {
+            this.deathBar += dt * (1.2 + this.time / 300);  // much gentler rate
+            if (this.kills > (this._lastDeathBarKills || 0) && this.kills % 10 === 0) {
+                this._lastDeathBarKills = this.kills;
+                this.deathBar += 4;
+            }
         }
         if (this.deathBar >= 100) {
             this.deathBar = 0;
+            this._deathBarCooldown = 45;   // at least 45s before next dark wave
             // Spawn a burst of elite enemies
             const burstCount = 4 + Math.floor(this.time / 60);
             for (let b = 0; b < burstCount; b++) {
                 const angle2 = (Math.PI * 2 / burstCount) * b;
-                const halfW2 = canvas.width / 2, halfH2 = canvas.height / 2;
+                const halfW2 = Game.lw / 2, halfH2 = Game.lh / 2;
                 const dist2  = Math.sqrt(halfW2*halfW2 + halfH2*halfH2) + 100;
                 const ex = this.player.x + Math.cos(angle2) * dist2;
                 const ey = this.player.y + Math.sin(angle2) * dist2;
@@ -1611,26 +1624,33 @@ const Game = {
         }
 
         // XP gems
-        const pickupRange   = this.gameMode === 'frenetic' ? this.player.pickupRange * 2.0 : this.player.pickupRange;
-        const gemPullSpeed  = this.gameMode === 'frenetic' ? 18 : 10;
-        for (let i = this.gems.length-1; i >= 0; i--) {
+        const pickupRange  = this.gameMode === 'frenetic' ? this.player.pickupRange * 2.0 : this.player.pickupRange;
+        const gemPullSpeed = this.gameMode === 'frenetic' ? 18 : 10;
+        // Cooldown so rapid gem pickups don't chain into back-to-back level-up screens
+        if (this._levelupCooldown > 0) this._levelupCooldown -= dt;
+
+        for (let i = this.gems.length - 1; i >= 0; i--) {
             const g = this.gems[i];
             const d = M.dist(this.player.x, this.player.y, g.x, g.y);
-            if (d < pickupRange) { g.x=M.lerp(g.x,this.player.x,dt*gemPullSpeed); g.y=M.lerp(g.y,this.player.y,dt*gemPullSpeed); }
+            if (d < pickupRange) {
+                g.x = M.lerp(g.x, this.player.x, dt * gemPullSpeed);
+                g.y = M.lerp(g.y, this.player.y, dt * gemPullSpeed);
+            }
             if (d < 16) {
                 const xpGain = g.xp * (1 + this.combo * 0.015) * (this.gameMode === 'frenetic' ? 1.3 : 1);
-                this.player.xp += xpGain;   // ← only once (was duplicated)
-                if (this.player.xp >= this.player.nextXp) {
+                this.player.xp += xpGain;
+                this.gems.splice(i, 1);
+
+                if (this.player.xp >= this.player.nextXp && this._levelupCooldown <= 0) {
                     this.player.xp -= this.player.nextXp;
-                    const _lv = this.player.level;
+                    const _lv    = this.player.level;
                     const _xpMult = _lv < 5 ? 1.55 : _lv < 12 ? 1.35 : 1.20;
                     this.player.nextXp = Math.floor(this.player.nextXp * _xpMult);
                     this.player.level++;
-                    this.gems.splice(i, 1);
-                    this.triggerLevelUp();   // show screen; return — player picks before next level
-                    return;                  // stop processing gems this frame
+                    this._levelupCooldown = 0.35;   // 350ms window — pick upgrade, then next gem fires
+                    this.triggerLevelUp();
+                    return;   // stop this frame; resume after player picks upgrade
                 }
-                this.gems.splice(i, 1);
             }
         }
 
@@ -1662,8 +1682,11 @@ const Game = {
     // ─────────────────────────── DRAW ────────────────────────────
     draw() {
         const ctx = this.ctx;
+        const dpr = this._dpr || 1;
+        // Reapply DPR transform — assigning canvas.width resets the context transform
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         // ── DARK FOREST background ─────────────────────────────────
-        ctx.fillStyle = '#030a04'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#030a04'; ctx.fillRect(0, 0, Game.lw, Game.lh);
 
         if (this.state === 'LOADING' || this.state === 'LANDING') return;
         if (this.state === 'START') return;
@@ -1681,16 +1704,16 @@ const Game = {
         const startTileX = Math.floor(this.player.x / tileSize);
         const startTileY = Math.floor(this.player.y / tileSize);
         // Pixel offset of top-left tile on screen
-        const tOffX = (startTileX * tileSize - this.player.x) + canvas.width  / 2;
-        const tOffY = (startTileY * tileSize - this.player.y) + canvas.height / 2;
+        const tOffX = (startTileX * tileSize - this.player.x) + Game.lw  / 2;
+        const tOffY = (startTileY * tileSize - this.player.y) + Game.lh / 2;
         // How many tiles to draw — start far left/top to cover full screen
-        const tilesX = Math.ceil(canvas.width  / tileSize) + 3;
-        const tilesY = Math.ceil(canvas.height / tileSize) + 3;
-        const startIX = -Math.ceil(canvas.width  / (2 * tileSize)) - 1;
-        const startIY = -Math.ceil(canvas.height / (2 * tileSize)) - 1;
+        const tilesX = Math.ceil(Game.lw  / tileSize) + 3;
+        const tilesY = Math.ceil(Game.lh / tileSize) + 3;
+        const startIX = -Math.ceil(Game.lw  / (2 * tileSize)) - 1;
+        const startIY = -Math.ceil(Game.lh / (2 * tileSize)) - 1;
 
         ctx.fillStyle = '#030a04';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, Game.lw, Game.lh);
 
         // Ground patches — wx/wy are STABLE world tile indices, never float
         for (let ix = startIX; ix < startIX + tilesX + Math.abs(startIX); ix++) {
@@ -1728,11 +1751,11 @@ const Game = {
         ctx.strokeStyle = 'rgba(0,0,0,0.38)'; ctx.lineWidth = 1;
         for (let ix = startIX; ix < startIX + tilesX + Math.abs(startIX); ix++) {
             const sx = tOffX + ix * tileSize;
-            ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,Game.lh); ctx.stroke();
         }
         for (let iy = startIY; iy < startIY + tilesY + Math.abs(startIY); iy++) {
             const sy = tOffY + iy * tileSize;
-            ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(canvas.width,sy); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(Game.lw,sy); ctx.stroke();
         }
 
         // ── GLOWING MUSHROOMS (replace torches) ────────────────────
@@ -1763,9 +1786,9 @@ const Game = {
         }
 
         this._torches.forEach(t => {
-            const sx = t.wx - off.x + canvas.width  / 2;
-            const sy = t.wy - off.y + canvas.height / 2;
-            if (sx < -80 || sx > canvas.width + 80 || sy < -80 || sy > canvas.height + 80) return;
+            const sx = t.wx - off.x + Game.lw  / 2;
+            const sy = t.wy - off.y + Game.lh / 2;
+            if (sx < -80 || sx > Game.lw + 80 || sy < -80 || sy > Game.lh + 80) return;
             const [r,g,b] = t.col;
             const pulse = 0.7 + Math.sin(wt * t.flicker * 3 + t.phase) * 0.3;
 
@@ -1798,9 +1821,9 @@ const Game = {
             if (p.life > 1) { p.life = 0; p.torchIdx = Math.floor(Math.random() * this._torches.length); p.ox = (Math.random()-0.5)*8; }
             const t2  = this._torches[p.torchIdx];
             const [r,g,b] = t2.col;
-            const sx2 = t2.wx - off.x + canvas.width  / 2 + p.ox + Math.sin(p.life * 8) * 4;
-            const sy2 = t2.wy - off.y + canvas.height / 2 - p.life * 30;
-            if (sx2 < -20 || sx2 > canvas.width + 20 || sy2 < -20 || sy2 > canvas.height + 20) return;
+            const sx2 = t2.wx - off.x + Game.lw  / 2 + p.ox + Math.sin(p.life * 8) * 4;
+            const sy2 = t2.wy - off.y + Game.lh / 2 - p.life * 30;
+            if (sx2 < -20 || sx2 > Game.lw + 20 || sy2 < -20 || sy2 > Game.lh + 20) return;
             ctx.globalAlpha = (1 - p.life) * 0.55;
             ctx.fillStyle = `rgb(${r},${g},${b})`;
             ctx.beginPath(); ctx.arc(sx2, sy2, 1.2, 0, Math.PI*2); ctx.fill();
@@ -1816,8 +1839,8 @@ const Game = {
             }));
         }
         this._wisps.forEach(w => {
-            const wx2 = (w.x - off.x) % 1200 + canvas.width/2;
-            const wy2 = (w.y - off.y) % 900  + canvas.height/2;
+            const wx2 = (w.x - off.x) % 1200 + Game.lw/2;
+            const wy2 = (w.y - off.y) % 900  + Game.lh/2;
             const a   = 0.08 + Math.sin(wt * 0.3 + w.phase) * 0.04;
             ctx.globalAlpha = a;
             ctx.fillStyle   = w.col + '1)';
@@ -1827,8 +1850,8 @@ const Game = {
 
         // Decorations (roots/stones overgrown)
         this.decorations.forEach(d => {
-            const sx = d.x-off.x+canvas.width/2, sy = d.y-off.y+canvas.height/2;
-            if (sx<-50||sx>canvas.width+50||sy<-50||sy>canvas.height+50) return;
+            const sx = d.x-off.x+Game.lw/2, sy = d.y-off.y+Game.lh/2;
+            if (sx<-50||sx>Game.lw+50||sy<-50||sy>Game.lh+50) return;
             ctx.globalAlpha = 0.55;
             if (d.type==='rock') {
                 ctx.fillStyle = `hsl(120,${8+d.hue%10}%,${8+d.hue%5}%)`;
@@ -1848,7 +1871,7 @@ const Game = {
 
         // Power-ups
         this.powerUps.forEach(pu => {
-            const sx = pu.x-off.x+canvas.width/2, sy = pu.y-off.y+canvas.height/2+Math.sin(pu.pulse)*5;
+            const sx = pu.x-off.x+Game.lw/2, sy = pu.y-off.y+Game.lh/2+Math.sin(pu.pulse)*5;
             ctx.save(); ctx.shadowColor=pu.color; ctx.shadowBlur=20;
             ctx.fillStyle=pu.color; ctx.globalAlpha=0.85+Math.sin(pu.pulse*2)*0.15;
             ctx.beginPath(); ctx.arc(sx,sy,pu.r,0,Math.PI*2); ctx.fill();
@@ -1859,9 +1882,9 @@ const Game = {
 
         // Runes — Magic Survival style field pickups
         this.runes.forEach(rune => {
-            const sx = rune.x - off.x + canvas.width/2;
-            const sy = rune.y - off.y + canvas.height/2;
-            if (sx < -60 || sx > canvas.width+60 || sy < -60 || sy > canvas.height+60) return;
+            const sx = rune.x - off.x + Game.lw/2;
+            const sy = rune.y - off.y + Game.lh/2;
+            if (sx < -60 || sx > Game.lw+60 || sy < -60 || sy > Game.lh+60) return;
             const rp  = 0.6 + Math.sin(rune.pulse * 2.2) * 0.4;
             const fadePct = Math.min(1, rune.life / 4);
             ctx.save();
@@ -1890,8 +1913,8 @@ const Game = {
         const gt = Date.now() * 0.003;
         this.gems.forEach(g => {
             const tier = g.tier || 0;
-            const sx   = g.x - off.x + canvas.width  / 2;
-            const sy   = g.y - off.y + canvas.height / 2 + Math.sin(gt + g.x * 0.01) * 3;
+            const sx   = g.x - off.x + Game.lw  / 2;
+            const sy   = g.y - off.y + Game.lh / 2 + Math.sin(gt + g.x * 0.01) * 3;
             const pulse = 0.7 + Math.sin(gt * 2 + g.y * 0.01) * 0.3;
 
             // Tier-based visual parameters
@@ -1951,8 +1974,8 @@ const Game = {
 
         // Life Orbs — healing pickups
         this.lifeOrbs.forEach(lo => {
-            const sx  = lo.x - off.x + canvas.width/2;
-            const sy2 = lo.y - off.y + canvas.height/2 + Math.sin(gt*2 + lo.x*0.02) * 2.5;
+            const sx  = lo.x - off.x + Game.lw/2;
+            const sy2 = lo.y - off.y + Game.lh/2 + Math.sin(gt*2 + lo.x*0.02) * 2.5;
             const lp  = 0.7 + Math.sin(lo.pulse * 2) * 0.3;
             ctx.save();
             // Outer heal glow
@@ -1978,7 +2001,7 @@ const Game = {
         this.enemyProjectiles.forEach(ep => {
             ctx.save(); ctx.shadowColor=ep.color; ctx.shadowBlur=CONFIG.IS_MOBILE?6:14;
             ctx.fillStyle=ep.color; ctx.globalAlpha=ep.life/80;
-            ctx.beginPath(); ctx.arc(ep.x-off.x+canvas.width/2, ep.y-off.y+canvas.height/2, ep.r, 0, Math.PI*2);
+            ctx.beginPath(); ctx.arc(ep.x-off.x+Game.lw/2, ep.y-off.y+Game.lh/2, ep.r, 0, Math.PI*2);
             ctx.fill(); ctx.restore();
         });
 
@@ -1992,7 +2015,7 @@ const Game = {
 
             if (bolt.segments) {
                 // ── Vorath skyfall lightning ─────────────────────
-                const W2 = canvas.width/2, H2 = canvas.height/2;
+                const W2 = Game.lw/2, H2 = Game.lh/2;
 
                 // Impact area glow
                 const sx2 = bolt.x - off.x + W2, sy2 = bolt.y - off.y + H2;
@@ -2043,11 +2066,11 @@ const Game = {
                 ctx.strokeStyle = `rgba(200,255,100,${alpha*0.9})`;
                 ctx.lineWidth   = 2 + Math.random()*2; ctx.shadowColor='#aaff00'; ctx.shadowBlur=10;
                 ctx.beginPath();
-                ctx.moveTo(bolt.fromX-off.x+canvas.width/2, bolt.fromY-off.y+canvas.height/2);
+                ctx.moveTo(bolt.fromX-off.x+Game.lw/2, bolt.fromY-off.y+Game.lh/2);
                 for (let s=1; s<=6; s++) {
                     const tx2 = M.lerp(bolt.fromX,bolt.toX,s/6) + M.rand(-12,12);
                     const ty2 = M.lerp(bolt.fromY,bolt.toY,s/6) + M.rand(-12,12);
-                    ctx.lineTo(tx2-off.x+canvas.width/2, ty2-off.y+canvas.height/2);
+                    ctx.lineTo(tx2-off.x+Game.lw/2, ty2-off.y+Game.lh/2);
                 }
                 ctx.stroke();
             }
@@ -2056,7 +2079,7 @@ const Game = {
 
         // Elora ultra cones rendering
         if (this.eloraUltraCones) {
-            const cx = canvas.width/2, cy = canvas.height/2;
+            const cx = Game.lw/2, cy = Game.lh/2;
             this.eloraUltraCones.forEach(cone => {
                 const alpha = Math.max(0, 1 - cone.phase);
                 const r2    = cone.range * (0.3 + cone.phase * 0.7);
@@ -2086,12 +2109,12 @@ const Game = {
 
         // Zale ultra — lock-on lines from player to each zaleUltra projectile
         if (this.zaleUltraTimer > 0) {
-            const px2 = this.player.x - off.x + canvas.width/2;
-            const py2 = this.player.y - off.y + canvas.height/2;
+            const px2 = this.player.x - off.x + Game.lw/2;
+            const py2 = this.player.y - off.y + Game.lh/2;
             this.projectiles.forEach(p => {
                 if (!p.zaleUltra) return;
-                const ex2 = p.x - off.x + canvas.width/2;
-                const ey2 = p.y - off.y + canvas.height/2;
+                const ex2 = p.x - off.x + Game.lw/2;
+                const ey2 = p.y - off.y + Game.lh/2;
                 ctx.save();
                 ctx.globalAlpha = Math.min(0.35, p.life / 2.4 * 0.35);
                 ctx.strokeStyle = '#4488ff';
@@ -2108,8 +2131,8 @@ const Game = {
         if (this.ultraWhips && this.ultraWhips.length) {
             this.ultraWhips.forEach(w => {
                 const px = this.player.x, py = this.player.y;
-                const sx = px - off.x + canvas.width/2;
-                const sy = py - off.y + canvas.height/2;
+                const sx = px - off.x + Game.lw/2;
+                const sy = py - off.y + Game.lh/2;
                 const raw    = w.phase;
                 const ease   = raw < 0.5 ? 2*raw*raw : -1+(4-2*raw)*raw;
                 const halfArc  = w.arc / 2;
@@ -2195,8 +2218,8 @@ const Game = {
                     const alpha = Math.max(0, p.life / p.maxLife);
                     const r = p.r * (0.3 + alpha * 0.7); // size-fade: cheaper than globalAlpha
                     if (r < 0.5) continue;
-                    const sx = p.x - off.x + canvas.width  / 2;
-                    const sy = p.y - off.y + canvas.height / 2;
+                    const sx = p.x - off.x + Game.lw  / 2;
+                    const sy = p.y - off.y + Game.lh / 2;
                     ctx.moveTo(sx + r, sy);
                     ctx.arc(sx, sy, r, 0, Math.PI * 2);
                 }
@@ -2214,7 +2237,7 @@ const Game = {
         for (const t of this.texts) {
             const alpha = Math.max(0, t.life/t.maxLife);
             const scale = t.isCrit ? 1.1+(1-alpha)*0.5 : 1;
-            const sx = t.x-off.x+canvas.width/2, sy = t.y-off.y+canvas.height/2;
+            const sx = t.x-off.x+Game.lw/2, sy = t.y-off.y+Game.lh/2;
             ctx.save(); ctx.globalAlpha=alpha;
             ctx.translate(sx,sy); ctx.scale(scale,scale);
             if (t.isCrit) { ctx.font='bold 20px "Orbitron",monospace'; ctx.fillStyle='#ffd700'; ctx.shadowColor='#ffd700'; ctx.shadowBlur=16; }
@@ -2227,8 +2250,8 @@ const Game = {
         if (this.bossArena) {
             this.bossArenaAlpha = Math.min(1, (this.bossArenaAlpha || 0) + 0.018);
             const ar = this.bossArena;
-            const sx = ar.x - off.x + canvas.width  / 2;
-            const sy = ar.y - off.y + canvas.height / 2;
+            const sx = ar.x - off.x + Game.lw  / 2;
+            const sy = ar.y - off.y + Game.lh / 2;
             const t2 = Date.now() * 0.002;
             const fa = this.bossArenaAlpha;
 
@@ -2243,15 +2266,15 @@ const Game = {
             fogGrad.addColorStop(0.8,  `rgba(2,0,6,${0.96 * fa})`);
             fogGrad.addColorStop(1,    `rgba(0,0,2,${1.0  * fa})`);
             ctx.fillStyle = fogGrad;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, Game.lw, Game.lh);
 
             // Hard black beyond 1.6× radius (single fillRect, no evenodd)
-            if (ar.r * 1.6 < Math.max(canvas.width, canvas.height)) {
+            if (ar.r * 1.6 < Math.max(Game.lw, Game.lh)) {
                 ctx.save();
                 ctx.globalAlpha = 0.98 * fa;
                 ctx.fillStyle = '#000002';
                 ctx.beginPath();
-                ctx.rect(0, 0, canvas.width, canvas.height);
+                ctx.rect(0, 0, Game.lw, Game.lh);
                 ctx.arc(sx, sy, ar.r * 1.6, 0, Math.PI * 2, true);
                 ctx.fill('evenodd');
                 ctx.restore();
@@ -2262,8 +2285,8 @@ const Game = {
             if (this.bossSpawning) {
                 const bs    = this.bossSpawning;
                 const prog  = 1 - (bs.timer / 3.0);   // 0→1 over 3s
-                const rsx   = bs.x - off.x + canvas.width  / 2;
-                const rsy   = bs.y - off.y + canvas.height / 2;
+                const rsx   = bs.x - off.x + Game.lw  / 2;
+                const rsy   = bs.y - off.y + Game.lh / 2;
                 const bcol  = bs.color;
                 const pulse2 = 0.5 + Math.sin(t2 * 6) * 0.5;
 
@@ -2350,19 +2373,19 @@ const Game = {
         // Fog damage flash (purple-black vignette when in boss fog)
         if (this._fogDmgFlash > 0.01) {
             this._fogDmgFlash *= 0.88;
-            const fogFlash = ctx.createRadialGradient(canvas.width/2,canvas.height/2,0,canvas.width/2,canvas.height/2,canvas.width*0.7);
+            const fogFlash = ctx.createRadialGradient(Game.lw/2,Game.lh/2,0,Game.lw/2,Game.lh/2,Game.lw*0.7);
             fogFlash.addColorStop(0,   'transparent');
             fogFlash.addColorStop(0.6, `rgba(30,0,50,${(this._fogDmgFlash*0.4).toFixed(2)})`);
             fogFlash.addColorStop(1,   `rgba(10,0,20,${(this._fogDmgFlash*0.85).toFixed(2)})`);
             ctx.fillStyle = fogFlash;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, Game.lw, Game.lh);
         }
 
         // Damage flash — drawn OUTSIDE the shake transform (screen-space)
         if (this.dmgFlash > 0.01) {
             ctx.save();
             ctx.fillStyle = `rgba(200,0,40,${this.dmgFlash.toFixed(2)})`;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, Game.lw, Game.lh);
             ctx.restore();
         }
     },

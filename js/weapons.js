@@ -134,8 +134,8 @@ const WeaponFactory = {
         const currAng   = startAng + this.swingArc * ease;
         const fadeOut   = Math.max(0, 1 - raw * 1.5);
 
-        const cx = canvas.width  / 2;
-        const cy = canvas.height / 2;
+        const cx = Game.lw  / 2;
+        const cy = Game.lh / 2;
 
         // Tip world position
         const tipX = Math.cos(currAng) * this.swingLen;
@@ -326,8 +326,8 @@ const WeaponFactory = {
         const orbs = this.level >= 5 ? 5 : this.level >= 4 ? 4 : this.level >= 3 ? 3 : this.level >= 2 ? 2 : 1;
         for (let o = 0; o < orbs; o++) {
             const a  = this.angle + (Math.PI * 2 / orbs) * o;
-            const sx = (this.player.x + Math.cos(a) * this.orbitR) - off.x + canvas.width  / 2;
-            const sy = (this.player.y + Math.sin(a) * this.orbitR) - off.y + canvas.height / 2;
+            const sx = (this.player.x + Math.cos(a) * this.orbitR) - off.x + Game.lw  / 2;
+            const sy = (this.player.y + Math.sin(a) * this.orbitR) - off.y + Game.lh / 2;
             ctx.save();
             ctx.shadowColor = '#cc99ff';
             ctx.shadowBlur  = CONFIG.IS_MOBILE ? 8 : 20;
@@ -378,19 +378,19 @@ const WeaponFactory = {
         ctx.shadowColor = '#88ff88';
         ctx.shadowBlur  = 16;
         ctx.beginPath();
-        ctx.arc(canvas.width/2, canvas.height/2, this.auraR, 0, Math.PI*2);
+        ctx.arc(Game.lw/2, Game.lh/2, this.auraR, 0, Math.PI*2);
         ctx.stroke();
         // Inner fill
         ctx.globalAlpha = p2;
         const g = ctx.createRadialGradient(
-            canvas.width/2, canvas.height/2, 0,
-            canvas.width/2, canvas.height/2, this.auraR
+            Game.lw/2, Game.lh/2, 0,
+            Game.lw/2, Game.lh/2, this.auraR
         );
         g.addColorStop(0, 'rgba(140,255,140,0.2)');
         g.addColorStop(1, 'rgba(140,255,140,0)');
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(canvas.width/2, canvas.height/2, this.auraR, 0, Math.PI*2);
+        ctx.arc(Game.lw/2, Game.lh/2, this.auraR, 0, Math.PI*2);
         ctx.fill();
         ctx.restore();
     }
@@ -496,8 +496,8 @@ const WeaponFactory = {
         const r     = this.range * (0.3 + this.phase * 0.7);
         const a1    = this.angle - this.coneArc / 2;
         const a2    = this.angle + this.coneArc / 2;
-        const cx    = canvas.width  / 2;
-        const cy    = canvas.height / 2;
+        const cx    = Game.lw  / 2;
+        const cy    = Game.lh / 2;
 
         ctx.save();
         ctx.translate(cx, cy);
@@ -623,8 +623,8 @@ const WeaponFactory = {
 
     draw(ctx, off) {
         if (this.noTargetFlash <= 0) return;
-        const cx = canvas.width  / 2;
-        const cy = canvas.height / 2;
+        const cx = Game.lw  / 2;
+        const cy = Game.lh / 2;
         ctx.save();
         ctx.globalAlpha = this.noTargetFlash * 0.38;
         ctx.strokeStyle  = '#aaff00';
@@ -736,8 +736,8 @@ const WeaponFactory = {
     draw(ctx, off) {
         const now = Date.now() * 0.003;
         this.flames.forEach(f => {
-            const sx  = f.x - off.x + canvas.width  / 2;
-            const sy  = f.y - off.y + canvas.height / 2;
+            const sx  = f.x - off.x + Game.lw  / 2;
+            const sy  = f.y - off.y + Game.lh / 2;
             const rat = f.life / f.maxLife;
             ctx.save();
             ctx.globalAlpha = rat * 0.55;
@@ -832,7 +832,7 @@ const WeaponFactory = {
     }
     draw(ctx, off) {
         // Orbiting storm orbs
-        const cx = canvas.width/2, cy = canvas.height/2;
+        const cx = Game.lw/2, cy = Game.lh/2;
         for (let o = 0; o < this.ORB_COUNT; o++) {
             const a   = this.stormAngle + (Math.PI*2/this.ORB_COUNT)*o;
             const sx  = Math.cos(a) * this.ORB_R;
@@ -913,7 +913,7 @@ const WeaponFactory = {
         }
     }
     draw(ctx, off) {
-        const cx = canvas.width/2, cy = canvas.height/2;
+        const cx = Game.lw/2, cy = Game.lh/2;
         // Skull familiar
         const t2  = Date.now() * 0.001;
         const sa  = this.skulkAngle;
@@ -1027,7 +1027,7 @@ const WeaponFactory = {
         }
     }
     draw(ctx, off) {
-        const cx = canvas.width/2, cy = canvas.height/2;
+        const cx = Game.lw/2, cy = Game.lh/2;
         const t2 = Date.now() * 0.001;
 
         // Draw consecrated grounds
@@ -1091,10 +1091,10 @@ const WeaponFactory = {
 //  Called from game.js draw loop for every active projectile.
 // ═══════════════════════════════════════════════════════════════
 function drawProjectile(ctx, p, off) {
-    const sx = p.x - off.x + canvas.width  / 2;
-    const sy = p.y - off.y + canvas.height / 2;
+    const sx = p.x - off.x + Game.lw  / 2;
+    const sy = p.y - off.y + Game.lh / 2;
     // Frustum cull
-    if (sx < -70 || sx > canvas.width+70 || sy < -70 || sy > canvas.height+70) return;
+    if (sx < -70 || sx > Game.lw+70 || sy < -70 || sy > Game.lh+70) return;
 
     ctx.save();
 
