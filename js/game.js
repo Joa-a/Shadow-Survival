@@ -1148,7 +1148,7 @@ const Game = {
         if (curMin > this.lastMinute) {
             this.lastMinute = curMin;
             // Normal: boss every 3 min. Frenético: every 2 min
-            const bossInterval = isFrenetic ? 2 : 3;
+            const bossInterval = (this.gameMode === 'frenetic') ? 2 : 3;
             if (this.lastMinute % bossInterval === 0 && !this.currentBoss && !this.bossSpawning) this.spawnEnemy(true);
         }
 
