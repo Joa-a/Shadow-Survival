@@ -306,7 +306,7 @@ const WeaponFactory = {
     update(dt) {
         this.angle  += dt * (3.8 + this.level * 0.35);
         this.orbitR  = 88 + this.level * 10;
-        const orbs   = this.level >= 3 ? 3 : (this.level >= 2 ? 2 : 1);
+        const orbs   = this.level >= 5 ? 5 : this.level >= 4 ? 4 : this.level >= 3 ? 3 : this.level >= 2 ? 2 : 1;
         for (let o = 0; o < orbs; o++) {
             const a  = this.angle + (Math.PI * 2 / orbs) * o;
             const bx = this.player.x + Math.cos(a) * this.orbitR;
@@ -321,7 +321,7 @@ const WeaponFactory = {
         }
     }
     draw(ctx, off) {
-        const orbs = this.level >= 3 ? 3 : (this.level >= 2 ? 2 : 1);
+        const orbs = this.level >= 5 ? 5 : this.level >= 4 ? 4 : this.level >= 3 ? 3 : this.level >= 2 ? 2 : 1;
         for (let o = 0; o < orbs; o++) {
             const a  = this.angle + (Math.PI * 2 / orbs) * o;
             const sx = (this.player.x + Math.cos(a) * this.orbitR) - off.x + canvas.width  / 2;

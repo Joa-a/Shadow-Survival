@@ -1219,7 +1219,7 @@ const Game = {
             let blockedByOrb = false;
             const bibleWeapon = this.player.weapons.find(w => w.id === 'Bible' || w.id === 'HolyNova');
             if (bibleWeapon && ep.life > 0) {
-                const numOrbs = bibleWeapon.level >= 3 ? 3 : (bibleWeapon.level >= 2 ? 2 : 1);
+                const numOrbs = bibleWeapon.level >= 5 ? 5 : bibleWeapon.level >= 4 ? 4 : bibleWeapon.level >= 3 ? 3 : bibleWeapon.level >= 2 ? 2 : 1;
                 for (let o = 0; o < numOrbs; o++) {
                     const orbAngle = bibleWeapon.angle + (Math.PI * 2 / numOrbs) * o;
                     const orbX = this.player.x + Math.cos(orbAngle) * bibleWeapon.orbitR;
