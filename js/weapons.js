@@ -768,132 +768,317 @@ const WeaponFactory = {
 
 // ─────────────────────────────────────────────────────────────
 //  THUNDER STORM — Evolution of Lightning + Armor
-//  Chains through ALL enemies on screen. No range limit.
+//  • 3 orbiting storm orbs that passively zap nearby enemies
+//  • Main chain every 0.75s hits 15 targets
+//  • Area EMP blast on each chain
 // ─────────────────────────────────────────────────────────────
 'ThunderStorm': class extends Weapon {
     constructor(p) {
-        super(p, 'ThunderStorm', 70, 1.0);
-        this.chains = 10;
+        super(p, 'ThunderStorm', 70, 0.75);
+        this.chains      = 15;
+        this.stormAngle  = 0;
+        this.ORB_R       = 85;
+        this.ORB_COUNT   = 3;
     }
     update(dt) {
+        // Orbiting storm orbs — passive continuous damage
+        this.stormAngle += dt * 3.8;
+        for (let o = 0; o < this.ORB_COUNT; o++) {
+            const a  = this.stormAngle + (Math.PI * 2 / this.ORB_COUNT) * o;
+            const ox = Game.player.x + Math.cos(a) * this.ORB_R;
+            const oy = Game.player.y + Math.sin(a) * this.ORB_R;
+            for (const e of Game.enemies) {
+                if (!e.dead && M.dist(ox, oy, e.x, e.y) < 55) {
+                    e.hp   -= this.dmg * 0.18 * dt * 7;
+                    e.flash = Math.max(e.flash, 0.04);
+                }
+            }
+        }
+
+        // Main chain lightning
         this.timer -= dt;
         if (this.timer > 0 || !Game.enemies.length) return;
         this.timer = this.cooldown;
+
         const targets = [...Game.enemies]
             .filter(e => !e.dead)
             .sort((a, b) => M.dist(Game.player.x, Game.player.y, a.x, a.y)
                           - M.dist(Game.player.x, Game.player.y, b.x, b.y))
             .slice(0, this.chains);
+
         let prev = { x: Game.player.x, y: Game.player.y };
         targets.forEach((e, i) => {
-            const dmg = this.dmg * Math.pow(0.88, i);
+            const dmg = this.dmg * Math.pow(0.9, i);
             e.takeDamage(dmg);
             Game.spawnText(e.x, e.y, Math.floor(dmg), i === 0);
             Game.spawnParticle(e.x, e.y, '#aaff44', 5);
             Game.lightningBolts.push({ fromX:prev.x, fromY:prev.y, toX:e.x, toY:e.y, life:0.18, maxLife:0.18 });
             prev = e;
         });
-        if (targets.length) { AudioEngine.sfxLightning(); Game.shake = Math.min(Game.shake + 6, 14); }
+
+        if (targets.length) {
+            AudioEngine.sfxLightning();
+            Game.shake = Math.min(Game.shake + 8, 16);
+            // EMP ring — shockwave from player
+            for (let i = 0; i < 12; i++) {
+                const a = (Math.PI*2/12)*i;
+                Game.projectiles.push({
+                    type:'bolt', x:Game.player.x, y:Game.player.y,
+                    vx:Math.cos(a)*380, vy:Math.sin(a)*380,
+                    r:7, life:0.5, dmg:this.dmg*0.35, color:'#88eeff'
+                });
+            }
+        }
+    }
+    draw(ctx, off) {
+        // Orbiting storm orbs
+        const cx = canvas.width/2, cy = canvas.height/2;
+        for (let o = 0; o < this.ORB_COUNT; o++) {
+            const a   = this.stormAngle + (Math.PI*2/this.ORB_COUNT)*o;
+            const sx  = Math.cos(a) * this.ORB_R;
+            const sy2 = Math.sin(a) * this.ORB_R;
+            const t2  = Date.now() * 0.008;
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.globalAlpha = 0.75 + Math.sin(t2 + o * 2.1) * 0.2;
+            ctx.fillStyle   = '#88ddff';
+            ctx.shadowColor = '#44aaff'; ctx.shadowBlur = 22;
+            ctx.beginPath(); ctx.arc(sx, sy2, 9, 0, Math.PI*2); ctx.fill();
+            // Lightning spikes
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.shadowBlur = 6;
+            for (let li = 0; li < 4; li++) {
+                const la = t2 * 6 + li * Math.PI * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(sx, sy2);
+                ctx.lineTo(sx + Math.cos(la)*(10 + Math.sin(t2*8+li)*4),
+                           sy2 + Math.sin(la)*(10 + Math.sin(t2*8+li)*4));
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
     }
 },
 
 // ─────────────────────────────────────────────────────────────
 //  DEATH SCYTHE — Evolution of Whip + Vampire
-//  360° scythe sweep + 3 HP lifesteal per enemy hit.
+//  • Passive lifesteal aura: drains HP from enemies within 200px
+//  • 360° spectral scythe sweep every 1.0s + 3 HP per hit
+//  • Spectral skull orbits the player between sweeps
 // ─────────────────────────────────────────────────────────────
 'DeathScythe': class extends Weapon {
     constructor(p) {
-        super(p, 'DeathScythe', 55, 1.4);
-        this.range = 165; this.swingActive = false; this.phase = 0;
+        super(p, 'DeathScythe', 60, 1.0);
+        this.range      = 185;
+        this.swingActive = false;
+        this.phase       = 0;
+        this.skulkAngle  = 0;
     }
     update(dt) {
+        // ── Passive lifesteal aura ──────────────────────────────
+        this.skulkAngle += dt * 2.5;
+        const auraR = 200;
+        if (Math.random() < 0.4) {
+            for (const e of Game.enemies) {
+                if (!e.dead && M.dist(Game.player.x, Game.player.y, e.x, e.y) < auraR) {
+                    const drain = this.dmg * 0.04 * dt;
+                    e.hp -= drain;
+                    e.flash = Math.max(e.flash, 0.03);
+                    Game.player.hp = Math.min(Game.player.maxHp, Game.player.hp + drain * 0.4);
+                }
+            }
+        }
+
         this.timer -= dt;
         if (this.swingActive) {
-            this.phase += dt * 4.5;
+            this.phase += dt * 4.0;
             if (this.phase >= 1.0) { this.swingActive = false; this.phase = 0; return; }
             const hit = Game.enemies.filter(e =>
                 !e.dead && M.dist(Game.player.x, Game.player.y, e.x, e.y) < this.range);
             hit.forEach(e => {
                 if (e._scytheHit) return; e._scytheHit = true;
-                setTimeout(() => { if (e) e._scytheHit = false; }, 300);
-                const dmg = this.dmg;
-                e.takeDamage(dmg);
-                Game.spawnText(e.x, e.y, Math.floor(dmg), false);
-                Game.player.hp = Math.min(Game.player.maxHp, Game.player.hp + 3);
-                Game.spawnParticle(e.x, e.y, '#cc44ff', 5);
-                const kb = calcKnockback(dmg, e.maxHp);
+                setTimeout(() => { if (e) e._scytheHit = false; }, 250);
+                e.takeDamage(this.dmg);
+                Game.spawnText(e.x, e.y, Math.floor(this.dmg), false);
+                // Lifesteal per hit
+                Game.player.hp = Math.min(Game.player.maxHp, Game.player.hp + 4);
+                Game.spawnParticle(e.x, e.y, '#cc44ff', 6);
+                Game.spawnParticle(e.x, e.y, '#ff2255', 3);
                 const nd = M.norm(e.x - Game.player.x, e.y - Game.player.y);
-                e.knockback.x += nd.x * kb; e.knockback.y += nd.y * kb;
+                e.knockback.x += nd.x * 380; e.knockback.y += nd.y * 380;
             });
         } else if (this.timer <= 0) {
             this.timer = this.cooldown; this.swingActive = true; this.phase = 0;
+            AudioEngine.playTone(200, 'sawtooth', 0.12, 0.08);
+            Game.shake = Math.min(Game.shake + 5, 10);
         }
     }
     draw(ctx, off) {
-        if (!this.swingActive) return;
-        const cx = canvas.width / 2, cy = canvas.height / 2;
-        const t  = this.phase;
+        const cx = canvas.width/2, cy = canvas.height/2;
+        // Skull familiar
+        const t2  = Date.now() * 0.001;
+        const sa  = this.skulkAngle;
+        const skx = cx + Math.cos(sa) * 110;
+        const sky = cy + Math.sin(sa) * 90;
         ctx.save();
-        ctx.globalAlpha = (1 - t) * 0.45;
-        ctx.strokeStyle = '#cc44ff'; ctx.lineWidth = 18 * (1 - t);
-        ctx.shadowColor = '#aa00ff'; ctx.shadowBlur = 24;
-        ctx.beginPath(); ctx.arc(cx, cy, this.range, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 0.65 + Math.sin(t2 * 3) * 0.2;
+        ctx.fillStyle   = '#cc44ff'; ctx.shadowColor = '#aa00ff'; ctx.shadowBlur = 16;
+        ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('💀', skx, sky);
+        ctx.restore();
+
+        // Lifesteal aura ring
+        ctx.save();
+        ctx.globalAlpha = 0.06 + Math.sin(t2 * 2) * 0.04;
+        ctx.strokeStyle = '#cc44ff'; ctx.lineWidth = 2;
+        ctx.shadowColor = '#aa00ff'; ctx.shadowBlur = 10;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.arc(cx, cy, 200, 0, Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        if (!this.swingActive) return;
+        const t3 = this.phase;
+        ctx.save();
+        ctx.globalAlpha = (1 - t3) * 0.5;
+        ctx.strokeStyle = '#cc44ff'; ctx.lineWidth = 22 * (1 - t3);
+        ctx.shadowColor = '#aa00ff'; ctx.shadowBlur = 28;
+        ctx.beginPath(); ctx.arc(cx, cy, this.range, 0, Math.PI*2); ctx.stroke();
         // Spinning spectral arc
-        ctx.globalAlpha = (1 - t) * 0.7;
-        const sweep = Math.PI * 2 * t;
-        ctx.beginPath(); ctx.arc(cx, cy, this.range * 0.85, sweep, sweep + Math.PI * 0.9);
-        ctx.strokeStyle = '#ff88ff'; ctx.lineWidth = 6; ctx.stroke();
+        ctx.globalAlpha = (1 - t3) * 0.8;
+        const sweep = Math.PI * 2 * t3;
+        ctx.beginPath(); ctx.arc(cx, cy, this.range * 0.82, sweep, sweep + Math.PI * 1.1);
+        ctx.strokeStyle = '#ff88ff'; ctx.lineWidth = 8; ctx.stroke();
+        // Second arc offset
+        ctx.globalAlpha = (1 - t3) * 0.5;
+        ctx.beginPath(); ctx.arc(cx, cy, this.range * 0.6, sweep + Math.PI, sweep + Math.PI * 1.8);
+        ctx.strokeStyle = '#aa00ff'; ctx.lineWidth = 5; ctx.stroke();
         ctx.restore();
     }
 },
 
 // ─────────────────────────────────────────────────────────────
 //  HOLY NOVA — Evolution of HolyStrike + Bible
-//  Full-screen radial blast with massive knockback.
+//  • Massive 400px blast every 2.0s
+//  • 8 precision cross-beams shoot outward  
+//  • Leaves consecrated ground zone: 3s burn aura
 // ─────────────────────────────────────────────────────────────
 'HolyNova': class extends Weapon {
     constructor(p) {
-        super(p, 'HolyNova', 85, 2.2);
-        this.range = 300; this.blastActive = false; this.phase = 0; this._fired = false;
+        super(p, 'HolyNova', 90, 2.0);
+        this.range       = 400;
+        this.blastActive = false;
+        this.phase       = 0;
+        this.grounds     = []; // consecrated zones
     }
     update(dt) {
         this.timer -= dt;
+
+        // Update existing consecrated grounds
+        for (let i = this.grounds.length-1; i >= 0; i--) {
+            const g = this.grounds[i];
+            g.life -= dt;
+            if (g.life <= 0) { this.grounds.splice(i, 1); continue; }
+            for (const e of Game.enemies) {
+                if (!e.dead && M.dist(g.x, g.y, e.x, e.y) < g.r) {
+                    e.hp   -= this.dmg * 0.25 * dt;
+                    e.flash = Math.max(e.flash, 0.03);
+                }
+            }
+        }
+
         if (this.blastActive) {
-            this.phase += dt * 3.5;
-            if (this.phase >= 1.0) { this.blastActive = false; this.phase = 0; this._fired = false; }
+            this.phase += dt * 3.0;
+            if (this.phase >= 1.0) { this.blastActive = false; this.phase = 0; }
         } else if (this.timer <= 0) {
-            this.timer = this.cooldown;
-            this.blastActive = true; this.phase = 0; this._fired = false;
-            AudioEngine.sfxLevel(); Game.shake = Math.min(Game.shake + 10, 18);
-            Game.enemies.filter(e => !e.dead &&
-                M.dist(Game.player.x, Game.player.y, e.x, e.y) < this.range
-            ).forEach(e => {
-                const dmg = this.dmg; e.takeDamage(dmg);
-                Game.spawnText(e.x, e.y, Math.floor(dmg), true);
+            this.timer       = this.cooldown;
+            this.blastActive = true;
+            this.phase       = 0;
+            AudioEngine.sfxLevel();
+            Game.shake = Math.min(Game.shake + 12, 20);
+
+            // Radial blast
+            const blasted = Game.enemies.filter(e =>
+                !e.dead && M.dist(Game.player.x, Game.player.y, e.x, e.y) < this.range);
+            blasted.forEach(e => {
+                e.takeDamage(this.dmg);
+                Game.spawnText(e.x, e.y, Math.floor(this.dmg), true);
                 Game.spawnParticle(e.x, e.y, '#ffe080', 8);
-                const kb = calcKnockback(dmg, e.maxHp) * 1.8;
+                const kb = calcKnockback(this.dmg, e.maxHp) * 2.2;
                 const nd = M.norm(e.x - Game.player.x, e.y - Game.player.y);
                 e.knockback.x += nd.x * kb; e.knockback.y += nd.y * kb;
+            });
+
+            // 8 precision cross-beams
+            for (let i = 0; i < 8; i++) {
+                const a = (Math.PI/4)*i;
+                Game.projectiles.push({
+                    type:'holySpear', x:Game.player.x, y:Game.player.y,
+                    vx:Math.cos(a)*500, vy:Math.sin(a)*500,
+                    r:8, life:0.8, dmg:this.dmg*0.6, color:'#ffffcc',
+                    piercing:true, pierced:[], maxPierce:99,
+                });
+            }
+
+            // Consecrated ground
+            this.grounds.push({
+                x: Game.player.x, y: Game.player.y,
+                r: 140, life: 3.0, maxLife: 3.0
             });
         }
     }
     draw(ctx, off) {
+        const cx = canvas.width/2, cy = canvas.height/2;
+        const t2 = Date.now() * 0.001;
+
+        // Draw consecrated grounds
+        for (const g of this.grounds) {
+            const rat = g.life / g.maxLife;
+            const gsx = g.x - off.x + cx;
+            const gsy = g.y - off.y + cy;
+            ctx.save();
+            ctx.globalAlpha = rat * 0.22;
+            const grad = ctx.createRadialGradient(gsx, gsy, 0, gsx, gsy, g.r);
+            grad.addColorStop(0,   'rgba(255,255,200,0.8)');
+            grad.addColorStop(0.5, 'rgba(255,215,0,0.4)');
+            grad.addColorStop(1,   'rgba(255,200,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(gsx, gsy, g.r, 0, Math.PI*2); ctx.fill();
+            // Cross symbol
+            ctx.globalAlpha = rat * 0.35;
+            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
+            ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 8;
+            ctx.beginPath(); ctx.moveTo(gsx, gsy-g.r*0.6); ctx.lineTo(gsx, gsy+g.r*0.6); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(gsx-g.r*0.6, gsy); ctx.lineTo(gsx+g.r*0.6, gsy); ctx.stroke();
+            ctx.restore();
+        }
+
         if (!this.blastActive) return;
-        const cx = canvas.width / 2, cy = canvas.height / 2;
-        const t  = this.phase, r = this.range * (0.1 + t * 0.9);
+        const t = this.phase;
+        const r = this.range * (0.08 + t * 0.92);
         ctx.save();
-        ctx.globalAlpha = (1 - t) * 0.6;
+        ctx.globalAlpha = (1 - t) * 0.65;
         const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        grd.addColorStop(0,   'rgba(255,255,220,0.9)');
-        grd.addColorStop(0.4, 'rgba(255,215,0,0.6)');
-        grd.addColorStop(0.85,'rgba(200,100,20,0.2)');
-        grd.addColorStop(1,   'rgba(0,0,0,0)');
+        grd.addColorStop(0,    'rgba(255,255,220,0.95)');
+        grd.addColorStop(0.35, 'rgba(255,215,0,0.65)');
+        grd.addColorStop(0.75, 'rgba(200,100,20,0.25)');
+        grd.addColorStop(1,    'rgba(0,0,0,0)');
         ctx.fillStyle = grd;
-        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = (1 - t) * 0.9;
-        ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3 + (1 - t) * 4;
-        ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 20;
-        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+        // Expanding ring
+        ctx.globalAlpha = (1 - t) * 0.95;
+        ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 4 + (1-t)*5;
+        ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 30;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+        // Cross glare
+        ctx.globalAlpha = (1-t) * 0.8;
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3+(1-t)*3; ctx.shadowBlur = 20;
+        for (let i = 0; i < 4; i++) {
+            const a = (Math.PI/2)*i;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(a)*r*0.92, cy + Math.sin(a)*r*0.92);
+            ctx.stroke();
+        }
         ctx.restore();
     }
 },

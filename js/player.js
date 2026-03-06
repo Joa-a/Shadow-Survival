@@ -219,9 +219,26 @@ class Player extends Entity {
         const t   = Date.now() * 0.001;
         const id  = this.charData.id;
         const r   = this.r;
-        // facing direction angle (for aiming weapons)
-        const faceAng = (this.dir && (Math.abs(this.dir.x) + Math.abs(this.dir.y)) > 0.01)
-            ? Math.atan2(this.dir.y, this.dir.x) : 0;
+
+        // Aim angle: toward closest enemy. Smooth-interpolates so visuals don't snap.
+        // Falls back to movement direction when no enemies are nearby.
+        let targetAng;
+        const closest = (typeof Game !== 'undefined') ? Game.getClosestEnemy(this.x, this.y) : null;
+        if (closest) {
+            targetAng = Math.atan2(closest.y - this.y, closest.x - this.x);
+        } else if (this.dir && (Math.abs(this.dir.x) + Math.abs(this.dir.y)) > 0.01) {
+            targetAng = Math.atan2(this.dir.y, this.dir.x);
+        } else {
+            targetAng = this._aimAngle || 0;
+        }
+
+        // Smooth rotation — lerp on the unit circle to avoid angle-wrap artifacts
+        if (this._aimAngle === undefined) this._aimAngle = targetAng;
+        let diff = targetAng - this._aimAngle;
+        while (diff >  Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        this._aimAngle += diff * Math.min(1, 12 * (1 / 60)); // ~12 rad/s turn speed
+        const faceAng = this._aimAngle;
 
         ctx.save();
 

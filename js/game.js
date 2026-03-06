@@ -90,17 +90,30 @@ const Game = {
         CHARACTERS.forEach(c => {
             const card = document.createElement('div');
             card.className = 'char-card';
-            const statBars = Object.entries(c.stats)
-                .map(([k, v]) => `<span class="char-stat">${k.toUpperCase()} ${v}</span>`)
-                .join('');
+
+            // Convert dot stats to bar percentages
+            const statBars = Object.entries(c.stats).map(([k, v]) => {
+                const filled = (v.match(/●/g) || []).length;
+                const total  = filled + (v.match(/○/g) || []).length;
+                const pct    = Math.round(filled / total * 100);
+                const labels = { hp:'VIDA', spd:'VEL', atk:'ATK' };
+                const colors = { hp:'#ff4466', spd:'#44ff88', atk:'#ffaa22' };
+                return `<div class="csr-row">
+                    <span class="csr-label">${labels[k]||k.toUpperCase()}</span>
+                    <div class="csr-bar"><div class="csr-fill" style="width:${pct}%;background:${colors[k]||'#aaa'};box-shadow:0 0 6px ${colors[k]||'#aaa'}"></div></div>
+                    <span class="csr-num">${filled}/${total}</span>
+                </div>`;
+            }).join('');
+
             const weaponName = UPGRADES_DB[c.weapon]?.name || c.weapon;
             const weaponIcon = UPGRADES_DB[c.weapon]?.icon || '?';
+            const weaponDesc = UPGRADES_DB[c.weapon]?.desc || '';
             card.innerHTML = `
                 <div class="char-icon">${c.icon}</div>
                 <h3>${c.name}</h3>
                 <p>${c.desc}</p>
-                <div class="char-stats">${statBars}</div>
-                <div class="char-weapon-tag">${weaponIcon} ${weaponName}</div>
+                <div class="char-stats-bars">${statBars}</div>
+                <div class="char-weapon-tag" title="${weaponDesc}">${weaponIcon} ${weaponName}</div>
             `;
             const sel = () => {
                 document.querySelectorAll('.char-card').forEach(el => el.classList.remove('selected'));
@@ -512,6 +525,7 @@ const Game = {
         this.hitstopFrames = 0; this.dmgFlash = 0;
         this.deathBar = 0; this.deathBarTimer = 0;
         this.runes = []; this.runeSpawnTimer = 0;
+        this.lifeOrbs = []; this.goldTimer = 0;
         this._wisps = null;
         this.nextKillMilestone = 0;
         this._updateBurstUI();
@@ -643,6 +657,8 @@ const Game = {
             { id:'magnet',     icon:'🧲', color:'#44ccff', label:'ATRACCIÓN',  glow:'rgba(68,204,255,' },
             { id:'clear',      icon:'💥', color:'#ff4422', label:'PURGAR',     glow:'rgba(255,68,34,'  },
             { id:'berserk',    icon:'⚡', color:'#ffdd00', label:'FRENESÍ',    glow:'rgba(255,221,0,'  },
+            { id:'freeze',     icon:'❄️', color:'#88ddff', label:'CONGELAR',   glow:'rgba(136,221,255,'},
+            { id:'drain',      icon:'🩸', color:'#ff2255', label:'DRENAJE',    glow:'rgba(255,34,85,'  },
         ];
         const type = RUNE_TYPES[Math.floor(Math.random() * RUNE_TYPES.length)];
         const a = Math.random() * Math.PI * 2;
@@ -663,20 +679,48 @@ const Game = {
             this.player.iframe = 6;
             this.player.activeBuffs.shield = 6;
         } else if (rune.id === 'magnet') {
-            // Pull all gems to player instantly
             this.gems.forEach(g => { g.x = this.player.x; g.y = this.player.y; });
+            this.lifeOrbs.forEach(lo => { lo.x = this.player.x; lo.y = this.player.y; });
         } else if (rune.id === 'clear') {
-            // Kill 80% of non-boss enemies on screen
             const toClear = this.enemies.filter(e => !e.isBoss);
             const n = Math.floor(toClear.length * 0.8);
-            for (let i = 0; i < n; i++) {
-                const e = toClear[i];
-                e.dead = true;
-            }
+            for (let i = 0; i < n; i++) toClear[i].dead = true;
             this.shake = 18;
         } else if (rune.id === 'berserk') {
             this.player.activeBuffs.damage = 8;
             this.player.activeBuffs.speed  = 5;
+        } else if (rune.id === 'freeze') {
+            // Freeze all enemies 65% for 5 seconds
+            for (const e of this.enemies) {
+                if (e.isBoss) continue;
+                if (!e._frozenBase) e._frozenBase = e.baseSpeed;
+                e.speed = e.baseSpeed * 0.30;
+                e._freezeTimer = 5;
+                this.spawnParticle(e.x, e.y, '#88ddff', 3);
+            }
+            this.shake = 6;
+        } else if (rune.id === 'drain') {
+            // Leech up to 15 HP from every nearby enemy
+            const drainRange = 320;
+            let drained = 0;
+            for (const e of this.enemies) {
+                if (M.dist(this.player.x, this.player.y, e.x, e.y) < drainRange) {
+                    const d = Math.min(e.hp * 0.35, 20);
+                    e.hp -= d; e.flash = 0.35;
+                    drained += d;
+                    this.spawnParticle(e.x, e.y, '#ff2255', 4);
+                    // Visual drain line
+                    this.lightningBolts.push({ fromX:e.x, fromY:e.y, toX:this.player.x, toY:this.player.y, life:0.22, maxLife:0.22 });
+                }
+            }
+            const healed = Math.min(Math.floor(drained * 0.45), this.player.maxHp - this.player.hp);
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + healed);
+            if (healed > 0) this.spawnText(this.player.x, this.player.y-22, '+'+healed+' HP', false);
+            this.shake = 10;
+        } else if (rune.id === 'gold') {
+            // Double XP gain for 15 seconds
+            this.goldTimer = 15;
+            this.showWaveMessage('✨ BONANZA 2× XP — 15s');
         }
     },
 
@@ -793,6 +837,10 @@ const Game = {
         if (t > 180) pool.push(ENEMY_TYPES[3], ENEMY_TYPES[4]);
         if (t > 240) pool.push(ENEMY_TYPES[4], ENEMY_TYPES[5]);
         if (t > 300) pool.push(ENEMY_TYPES[5], ENEMY_TYPES[5]);
+        // New enemy types: berserk, necromancer, shadow — aparecen solo después de 5 minutos
+        if (t > 300) pool.push(ENEMY_TYPES[6]);
+        if (t > 360) pool.push(ENEMY_TYPES[7], ENEMY_TYPES[6]);
+        if (t > 420) pool.push(ENEMY_TYPES[8], ENEMY_TYPES[8]);
 
         // Ranged enemies removed — only bosses can shoot projectiles
         pool = pool.filter(e => e.type !== 'ranged');
@@ -1011,6 +1059,15 @@ const Game = {
                 buffBar.appendChild(pill);
             }
         }
+        // Gold timer pill
+        if (this.goldTimer > 0) {
+            const gp = document.createElement('div');
+            gp.className = 'buff-pill';
+            gp.style.borderColor = '#ffd700';
+            gp.style.color       = '#ffd700';
+            gp.textContent = `✨ ×2 XP ${this.goldTimer.toFixed(1)}s`;
+            buffBar.appendChild(gp);
+        }
     },
 
     // ─────────────────────────── MINIMAP ─────────────────────────
@@ -1036,6 +1093,13 @@ const Game = {
             const mm = toMM(g.x, g.y);
             if (mm.x<0||mm.x>W||mm.y<0||mm.y>H) return;
             ctx.fillStyle = '#4488ff'; ctx.fillRect(mm.x-1, mm.y-1, 2, 2);
+        });
+        this.lifeOrbs.forEach(lo => {
+            const mm = toMM(lo.x, lo.y);
+            if (mm.x<0||mm.x>W||mm.y<0||mm.y>H) return;
+            ctx.fillStyle = '#44ff88'; ctx.shadowColor='#44ff88'; ctx.shadowBlur=3;
+            ctx.beginPath(); ctx.arc(mm.x, mm.y, 2.5, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
         });
         this.powerUps.forEach(pu => {
             const mm = toMM(pu.x, pu.y);
@@ -1064,8 +1128,9 @@ const Game = {
         const curMin = Math.floor(this.time / 60);
         if (curMin > this.lastMinute) {
             this.lastMinute = curMin;
-            // Boss every 3 minutes only
-            if (this.lastMinute % 3 === 0) this.spawnEnemy(true);
+            // Normal: boss every 3 min. Frenético: every 2 min
+            const bossInterval = isFrenetic ? 2 : 3;
+            if (this.lastMinute % bossInterval === 0) this.spawnEnemy(true);
         }
 
         if (this.comboTimer > 0) { this.comboTimer -= dt; if (this.comboTimer <= 0) this.combo = 0; }
@@ -1150,7 +1215,7 @@ const Game = {
 
         // ── RUNE SPAWNS (Magic Survival) ────────────────────────────
         this.runeSpawnTimer += dt;
-        const runeInterval = isFrenetic ? 18 : 28;
+        const runeInterval = isFrenetic ? 55 : 80;
         if (this.runeSpawnTimer >= runeInterval) {
             this.runeSpawnTimer = 0;
             this._spawnRune();
@@ -1193,6 +1258,37 @@ const Game = {
                     e._stunTimer = 0;
                     e.speed = e._preStunSpeed || e.baseSpeed || e.speed || 100;
                 }
+            }
+            // Freeze decay
+            if (e._freezeTimer > 0) {
+                e._freezeTimer -= dt;
+                if (e._freezeTimer <= 0) {
+                    e._freezeTimer = 0;
+                    e.speed = e._frozenBase || e.baseSpeed || e.speed;
+                }
+            }
+        }
+
+        // Gold (XP×2) timer
+        if (this.goldTimer > 0) this.goldTimer -= dt;
+
+        // Life orbs: drift toward player, collect on contact
+        for (let i = this.lifeOrbs.length - 1; i >= 0; i--) {
+            const lo = this.lifeOrbs[i];
+            lo.pulse += dt * 3;
+            const ld = M.dist(this.player.x, this.player.y, lo.x, lo.y);
+            if (ld < this.player.pickupRange) {
+                const la = M.angle(lo.x, lo.y, this.player.x, this.player.y);
+                const spd = Math.min(220, 80 + (1 - ld / this.player.pickupRange) * 300);
+                lo.x += Math.cos(la) * spd * dt;
+                lo.y += Math.sin(la) * spd * dt;
+            }
+            if (M.dist(this.player.x, this.player.y, lo.x, lo.y) < this.player.r + lo.r + 4) {
+                this.player.hp = Math.min(this.player.maxHp, this.player.hp + lo.hp);
+                this.spawnText(this.player.x, this.player.y - 22, '+' + lo.hp + ' HP', false);
+                this.spawnParticle(lo.x, lo.y, '#44ff88', 9);
+                AudioEngine.playTone(550, 'sine', 0.08, 0.06);
+                this.lifeOrbs.splice(i, 1);
             }
         }
 
@@ -1288,11 +1384,30 @@ const Game = {
             }
             if (e.dead) {
                 if (e.type === 'exploder') e.explode();
+                // Necromancer: spawn 3 swarm minions on death
+                if (e.type === 'necromancer' && !e._spawned) {
+                    e._spawned = true;
+                    for (let m = 0; m < 3; m++) {
+                        const ma = (Math.PI*2/3)*m + Math.random()*0.5;
+                        const md = 45 + Math.random()*25;
+                        const hm = 1 + (this.time < 60 ? 0 : (this.time-60)/180);
+                        this.enemies.push(new Enemy(
+                            e.x + Math.cos(ma)*md, e.y + Math.sin(ma)*md,
+                            {...ENEMY_TYPES[0]}, hm
+                        ));
+                    }
+                    Game.spawnParticle(e.x, e.y, '#33ffcc', 16);
+                    this.showWaveMessage('💀 INVOCACIÓN PÓSTUMA');
+                }
                 if (e === this.currentBoss) this.shake = 20;
                 this.kills++; this.combo++; this.comboTimer = 2.8;
-                this.gems.push({ x:e.x, y:e.y, xp:e.xpValue * (e.elite?2:1) });
+                const xpMult = (this.goldTimer > 0 ? 2 : 1) * (this.gameMode === 'frenetic' ? 1.5 : 1);
+                this.gems.push({ x:e.x, y:e.y, xp: e.xpValue * (e.elite?2:1) * xpMult });
                 this.spawnParticle(e.x, e.y, e.color, e.isBoss?20:10);
                 AudioEngine.sfxKill();
+                // Life orb drop (8% chance, bosses always drop)
+                if (e.isBoss || Math.random() < 0.08)
+                    this.lifeOrbs.push({ x:e.x, y:e.y, hp: e.isBoss ? 20 : 8, r:10, pulse:0 });
                 if (Math.random() < 0.10) this.spawnPowerUp(e.x, e.y);
                 // Vampire
                 if (this.player.stats.vampire > 0) {
@@ -1732,6 +1847,31 @@ const Game = {
             ctx.shadowBlur = 0;
             ctx.fillStyle = '#ccddff';
             ctx.beginPath(); ctx.arc(sx-1.5, sy-1.5, 1.8, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        });
+
+        // Life Orbs — healing pickups
+        this.lifeOrbs.forEach(lo => {
+            const sx  = lo.x - off.x + canvas.width/2;
+            const sy2 = lo.y - off.y + canvas.height/2 + Math.sin(gt*2 + lo.x*0.02) * 2.5;
+            const lp  = 0.7 + Math.sin(lo.pulse * 2) * 0.3;
+            ctx.save();
+            // Outer heal glow
+            ctx.globalAlpha = 0.22 * lp;
+            ctx.fillStyle   = '#44ff88';
+            ctx.shadowColor = '#00cc44'; ctx.shadowBlur = 16;
+            ctx.beginPath(); ctx.arc(sx, sy2, 14, 0, Math.PI*2); ctx.fill();
+            // Core
+            ctx.globalAlpha = 0.92;
+            ctx.shadowBlur  = 8;
+            ctx.fillStyle   = '#33dd66';
+            ctx.beginPath(); ctx.arc(sx, sy2, 7, 0, Math.PI*2); ctx.fill();
+            // Cross symbol
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur  = 0;
+            ctx.fillStyle   = '#ffffff';
+            ctx.fillRect(sx-1.5, sy2-5, 3, 10);
+            ctx.fillRect(sx-5, sy2-1.5, 10, 3);
             ctx.restore();
         });
 

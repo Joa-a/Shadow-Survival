@@ -61,9 +61,21 @@
 .char-card.selected { background:rgba(20,8,28,0.95); }
 .char-icon { font-size:28px; margin-bottom:6px; }
 .char-card h3 { color:var(--accent); margin-bottom:4px; font-size:clamp(12px,3vw,15px); font-family:'Orbitron',sans-serif; }
-.char-card p { font-size:11px; color:#776677; line-height:1.4; }
-.char-stats { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
-.char-stat { font-size:9px; color:#554466; background:rgba(255,255,255,0.04); padding:2px 6px; border-radius:3px; }
+.char-card p { font-size:11px; color:#776677; line-height:1.4; margin-bottom:6px; }
+
+/* ── Stat bars (replaces dot stats) ── */
+.char-stats-bars { display:flex; flex-direction:column; gap:4px; margin-top:6px; }
+.csr-row { display:flex; align-items:center; gap:5px; }
+.csr-label {
+    font-size:8px; color:#554466; letter-spacing:1px;
+    font-family:'Orbitron',sans-serif; min-width:22px; text-align:right;
+}
+.csr-bar {
+    flex:1; height:5px; background:rgba(255,255,255,0.06);
+    border-radius:3px; overflow:hidden; border:1px solid rgba(255,255,255,0.04);
+}
+.csr-fill { height:100%; border-radius:3px; transition:width 0.3s; }
+.csr-num { font-size:7px; color:#443355; font-family:'Orbitron',sans-serif; min-width:18px; }
 
 /* Main button */
 .btn-main {

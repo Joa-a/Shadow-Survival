@@ -648,3 +648,32 @@ canvas { display:block; touch-action:none; }
     font-size: clamp(11px,3vw,13px) !important;
     padding: 11px 28px !important;
 }
+
+/* ── Guest bypass button ── */
+.login-guest-btn {
+    background: transparent;
+    border: 1px solid #2a1a3a;
+    color: #443355;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 10px 24px;
+    cursor: pointer;
+    margin-top: 14px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    width: 100%;
+}
+.login-guest-btn:hover {
+    color: #887799;
+    border-color: #443355;
+}
+
+/* ── Frenético mode XP indicator ── */
+#frenetic-badge {
+    animation: freneticPulse 0.8s infinite alternate;
+}
+@keyframes freneticPulse {
+    0%   { opacity: 0.7; }
+    100% { opacity: 1; text-shadow: 0 0 18px #ffdd00; }
+}

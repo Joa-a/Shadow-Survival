@@ -46,6 +46,9 @@ class Enemy extends Entity {
             case 'exploder':this._updateExploder(dt, ang, dist);     break;
             case 'charger': this._updateCharger(dt, ang);            break;
             case 'phantom': this._updatePhantom(dt, px, py, ang);    break;
+            case 'berserk':     this._updateBerserk(dt, ang);            break;
+            case 'necromancer': this._updateNecromancer(dt, ang, dist);  break;
+            case 'shadow':      this._updateShadow(dt, px, py, ang);     break;
             default:
                 this.x += Math.cos(ang) * this.speed * dt;
                 this.y += Math.sin(ang) * this.speed * dt;
@@ -105,6 +108,77 @@ class Enemy extends Entity {
         }
         this.x += Math.cos(ang)*this.speed*0.8*dt;
         this.y += Math.sin(ang)*this.speed*0.8*dt;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // BERSERK — Rages when below 50% HP, becomes much faster & stronger
+    // ══════════════════════════════════════════════════════════════
+    _updateBerserk(dt, ang) {
+        const lowHp = this.hp < this.maxHp * 0.5;
+        if (lowHp && !this.raging) {
+            this.raging = true;
+            this.speed   = this.baseSpeed * 2.0;
+            this.dmg    *= 1.6;
+            Game.spawnParticle(this.x, this.y, '#ff4400', 12);
+        }
+        this.x += Math.cos(ang) * this.speed * dt;
+        this.y += Math.sin(ang) * this.speed * dt;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // NECROMANCER — Keeps distance, shoots 3 homing skulls
+    //               On death: spawns 3 swarm minions
+    // ══════════════════════════════════════════════════════════════
+    _updateNecromancer(dt, ang, dist) {
+        const kd = 150;
+        if      (dist < kd - 40) { this.x -= Math.cos(ang)*this.speed*0.6*dt; this.y -= Math.sin(ang)*this.speed*0.6*dt; }
+        else if (dist > kd + 40) { this.x += Math.cos(ang)*this.speed*0.5*dt; this.y += Math.sin(ang)*this.speed*0.5*dt; }
+        else                     { this.x += Math.sin(ang)*this.speed*0.3*dt; this.y -= Math.cos(ang)*this.speed*0.3*dt; }
+
+        this.shootTimer -= dt;
+        if (this.shootTimer <= 0) {
+            this.shootTimer = 3 + Math.random() * 2;
+            for (let i = 0; i < 3; i++) {
+                const spread = (i - 1) * 0.28;
+                Game.enemyProjectiles.push({
+                    x: this.x, y: this.y,
+                    vx: Math.cos(ang + spread) * 2.0,
+                    vy: Math.sin(ang + spread) * 2.0,
+                    r: 9, dmg: this.dmg * 0.65, life: 260, color: '#33ffcc',
+                    homing: true
+                });
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // SHADOW — Turns invisible for 2.5s bursts, teleports when reappearing
+    // ══════════════════════════════════════════════════════════════
+    _updateShadow(dt, px, py, ang) {
+        this.behaviorTimer += dt;
+        const invisDur  = 1.5;
+        const visDur    = 2.0;
+        const cycleDur  = invisDur + visDur;
+        const cycle     = this.behaviorTimer % cycleDur;
+        this.invisible  = cycle < invisDur;
+
+        if (this.invisible) {
+            this.speed = this.baseSpeed * 1.55; // faster while invisible
+        } else {
+            this.speed = this.baseSpeed;
+            // Teleport strike: snap close when becoming visible
+            if (cycle < visDur * 0.05 && this.lastInvis) {
+                const d2 = M.dist(this.x, this.y, px, py);
+                if (d2 > 200) {
+                    this.x = px + Math.cos(ang + Math.PI) * 140;
+                    this.y = py + Math.sin(ang + Math.PI) * 140;
+                    Game.spawnParticle(this.x, this.y, '#aa22ff', 10);
+                }
+            }
+        }
+        this.lastInvis = this.invisible;
+        this.x += Math.cos(ang) * this.speed * dt;
+        this.y += Math.sin(ang) * this.speed * dt;
     }
 
     _updateBoss(dt, px, py, dist, ang) {
@@ -373,6 +447,20 @@ class Enemy extends Entity {
         const glowColor = this.isBoss ? '#ff2244' : (this.elite ? '#ffcc44' : this.color);
         const pulse = 0.7 + Math.sin(t * 2 + this.x * 0.01) * 0.3;
 
+        // ── Shadow enemy: semi-invisible ─────────────────────────
+        if (this.type === 'shadow' && this.invisible) {
+            ctx.globalAlpha = 0.18 + Math.sin(t * 6) * 0.06;
+        }
+
+        // ── Berserk rage aura ─────────────────────────────────────
+        if (this.type === 'berserk' && this.raging) {
+            ctx.globalAlpha = 0.35 * pulse;
+            ctx.fillStyle   = '#ff4400';
+            ctx.shadowColor = '#ff2200'; ctx.shadowBlur = 24;
+            ctx.beginPath(); ctx.arc(sx, sy, this.r * 2.8, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+
         // Outer aura ring
         ctx.globalAlpha = 0.12 * pulse;
         ctx.fillStyle = glowColor;
@@ -386,7 +474,9 @@ class Enemy extends Entity {
         ctx.beginPath(); ctx.arc(sx, sy, this.r * 1.55, 0, Math.PI*2); ctx.fill();
 
         // Core body — translucent spirit
-        ctx.globalAlpha = this.type === 'phantom' ? 0.55 + Math.sin(t * 3)*0.2 : 0.82;
+        ctx.globalAlpha = this.type === 'phantom' ? 0.55 + Math.sin(t * 3)*0.2
+                        : this.type === 'shadow'  ? (this.invisible ? 0.22 : 0.85)
+                        : 0.82;
         ctx.shadowBlur  = CONFIG.IS_MOBILE ? 6 : 12;
         ctx.fillStyle   = col;
         ctx.beginPath();
@@ -398,10 +488,33 @@ class Enemy extends Entity {
             ctx.save(); ctx.translate(sx, sy); ctx.rotate(rot);
             ctx.rect(-this.r, -this.r, this.r*2, this.r*2);
             ctx.restore();
+        } else if (this.type === 'necromancer') {
+            // Skull-like shape: circle + 2 eye-socket holes
+            ctx.arc(sx, sy, this.r, 0, Math.PI*2);
+        } else if (this.type === 'berserk') {
+            // Jagged star
+            this._drawStar(ctx, sx, sy, 6, this.r, this.r * 0.5);
         } else {
             ctx.arc(sx, sy, this.r, 0, Math.PI*2);
         }
         ctx.fill();
+
+        // Necromancer eye sockets
+        if (this.type === 'necromancer') {
+            ctx.globalAlpha = 0.9;
+            ctx.fillStyle   = '#001a15';
+            ctx.shadowBlur  = 0;
+            const eyeR = this.r * 0.22;
+            ctx.beginPath(); ctx.arc(sx - this.r*0.3, sy - this.r*0.1, eyeR, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(sx + this.r*0.3, sy - this.r*0.1, eyeR, 0, Math.PI*2); ctx.fill();
+            // Orbiting summoning rune
+            const runeA = t * 2.2;
+            ctx.globalAlpha = 0.6 + Math.sin(t*4)*0.3;
+            ctx.strokeStyle = '#33ffcc'; ctx.lineWidth = 1.5;
+            ctx.shadowColor = '#33ffcc'; ctx.shadowBlur = 8;
+            ctx.beginPath(); ctx.arc(sx, sy, this.r + 10, runeA, runeA + Math.PI * 1.4); ctx.stroke();
+            ctx.beginPath(); ctx.arc(sx, sy, this.r + 10, runeA + Math.PI, runeA + Math.PI + Math.PI * 1.4); ctx.stroke();
+        }
 
         // Inner bright core dot
         ctx.globalAlpha = 0.9;

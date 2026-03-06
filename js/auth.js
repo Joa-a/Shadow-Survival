@@ -60,6 +60,25 @@ const Auth = {
                 this.attemptLogin(input ? input.value : '', pin ? pin.value : '');
             });
         }
+
+        // Guest bypass button — add only once
+        const loginBox = document.querySelector('.login-box');
+        if (loginBox && !loginBox.querySelector('.login-guest-btn')) {
+            const guestBtn = document.createElement('button');
+            guestBtn.className   = 'login-guest-btn';
+            guestBtn.textContent = '👁 JUGAR SIN CUENTA';
+            guestBtn.title       = 'Sin ranking global. Progreso no guardado.';
+            guestBtn.onclick     = () => this.playAsGuest();
+            loginBox.appendChild(guestBtn);
+        }
+    },
+
+    // ── GUEST MODE — skip login entirely ──────────────────────────
+    playAsGuest() {
+        this.currentUser = null;   // null = guest, score won't submit
+        const el = document.getElementById('login-screen');
+        if (el) el.style.display = 'none';
+        if (typeof Game !== 'undefined' && Game.init) Game.init();
     },
 
     _hideLoginScreen() {

@@ -196,17 +196,17 @@ AchievementStore.load();
 // Add evolved entries to UPGRADES_DB
 UPGRADES_DB['ThunderStorm'] = {
     name:'Tormenta Eterna',   icon:'🌩',
-    desc:'Rayo omnipresente. Golpea toda la pantalla en cadena. Evolución: Rayo + Armadura.',
+    desc:'3 orbes eléctricos te orbitan dañando todo. Cadena masiva a 15 enemigos cada 0.75s.',
     type:'weapon', evolved:true
 };
 UPGRADES_DB['DeathScythe'] = {
     name:'Guadaña Espectral', icon:'🌀',
-    desc:'Látigo espectral 360°. Drena vida en cada golpe. Evolución: Látigo + Vampiro.',
+    desc:'Barrido 360° que drena vida. Aura espectral pasiva absorbe HP de enemigos cercanos.',
     type:'weapon', evolved:true
 };
 UPGRADES_DB['HolyNova'] = {
     name:'Nova Sagrada',      icon:'✝️',
-    desc:'Explosión divina omnidireccional. Empuja y destruye. Evolución: Golpe Santo + Orbe.',
+    desc:'Explosión divina masiva + 6 rayos de cruz. Deja zona consagrada que quema a los que entran.',
     type:'weapon', evolved:true
 };
 
@@ -225,4 +225,7 @@ const ENEMY_TYPES = [
     { type:'charger',  hp:55,  speed:95,  r:14, color:'#ffddaa', xp:12, dmg:13 },  // pale amber
     { type:'exploder', hp:65,  speed:55,  r:18, color:'#aaffaa', xp:16, dmg:9  },  // pale green
     { type:'phantom',  hp:45,  speed:90,  r:13, color:'#ffffff', xp:14, dmg:11 },  // pure white spirit
+    { type:'berserk',    hp:55,  speed:130, r:13, color:'#ff8822', xp:16, dmg:13 },  // orange rager
+    { type:'necromancer',hp:68,  speed:55,  r:16, color:'#33ffcc', xp:22, dmg:9  },  // teal summoner
+    { type:'shadow',     hp:38,  speed:118, r:11, color:'#aa22ff', xp:14, dmg:10 },  // purple phantom
 ];
