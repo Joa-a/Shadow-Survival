@@ -1116,6 +1116,16 @@ const Game = {
             this.bossKills++;
             this.currentBoss = null;
             this.bossArena = null; this._fogDmgFlash = 0;  // remove arena wall
+            // Boss reward: full level up + full heal
+            this.player.level++;
+            this.player.xp = 0;
+            const _lv2    = this.player.level;
+            const _xpMult2 = _lv2 < 5 ? 1.55 : _lv2 < 12 ? 1.35 : 1.20;
+            this.player.nextXp = Math.floor(this.player.nextXp * _xpMult2);
+            this.player.hp = this.player.maxHp;
+            this.spawnText(this.player.x, this.player.y - 40, '¡NIVEL UP!', true);
+            this.spawnText(this.player.x, this.player.y - 65, '❤️ CURADO', false);
+            this.triggerLevelUp();
         }
 
         // Buff pills
@@ -1521,7 +1531,10 @@ const Game = {
                 if (e === this.currentBoss) this.shake = 20;
                 this.kills++; this.combo++; this.comboTimer = 2.8;
                 const xpMult = (this.goldTimer > 0 ? 2 : 1) * (this.gameMode === 'frenetic' ? 1.5 : 1);
-                this.gems.push({ x:e.x, y:e.y, xp: e.xpValue * (e.elite?2:1) * xpMult, tier:0 });
+                // Elites drop 5x XP (big gem), bosses handled below
+                const xpAmount = e.xpValue * (e.elite ? 5 : 1) * xpMult;
+                const gemTier  = e.elite ? 2 : 0;   // elite gems are gold tier
+                this.gems.push({ x:e.x, y:e.y, xp: xpAmount, tier: gemTier });
                 this.spawnParticle(e.x, e.y, e.color, e.isBoss?20:10);
                 AudioEngine.sfxKill();
                 // Life orb drop (8% chance, bosses always drop)
