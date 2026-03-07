@@ -6,59 +6,59 @@ const CHARACTERS = [
     {
         id:'warrior', name:'Alaric', icon:'\u2694\uFE0F', hp:70, speed:195,
         weapon:'Whip',
-        desc:'Tanque con l\u00e1tigo en arco. El l\u00e1tigo sigue la direcci\u00f3n del jugador.',
+        desc:'HP alto, velocidad media. Látigo que barre en arco siguiendo el movimiento. Ultra: 5 latigazos simultáneos en todas las direcciones con daño masivo y gran retroceso.',
         stats:{hp:'\u25cf\u25cf\u25cf\u25cf\u25cb',spd:'\u25cf\u25cf\u25cf\u25cb\u25cb',atk:'\u25cf\u25cf\u25cf\u25cb\u25cb'}
     },
     {
         id:'mage', name:'Zale', icon:'\ud83d\udd2e', hp:35, speed:175,
         weapon:'MagicWand',
-        desc:'Fr\u00e1gil pero devastador. La varita persigue enemigos.',
+        desc:'Poco HP pero daño máximo. Dispara proyectiles mágicos a los enemigos más cercanos. Al subir de nivel apunta a más objetivos a la vez. Ultra: ráfaga de hasta 20 proyectiles + doble cadencia durante 3 segundos.',
         stats:{hp:'\u25cf\u25cf\u25cb\u25cb\u25cb',spd:'\u25cf\u25cf\u25cb\u25cb\u25cb',atk:'\u25cf\u25cf\u25cf\u25cf\u25cf'}
     },
     {
         id:'rogue', name:'Kael', icon:'\ud83d\udde1\uFE0F', hp:45, speed:260,
         weapon:'Knife',
-        desc:'Velocísimo. Lanza cuchillos reales como proyectiles.',
+        desc:'El personaje más rápido del juego. Lanza cuchillos reales hacia el enemigo más cercano; más cuchillos en abanico al subir de nivel. Ultra: +10% velocidad, +10% cadencia y -10% daño recibido durante varios segundos.',
         stats:{hp:'\u25cf\u25cf\u25cf\u25cb\u25cb',spd:'\u25cf\u25cf\u25cf\u25cf\u25cf',atk:'\u25cf\u25cf\u25cf\u25cb\u25cb'}
     },
     {
         id:'cleric', name:'Elora', icon:'\u2728', hp:55, speed:185,
         weapon:'HolyStrike',
-        desc:'Golpe sagrado de corto alcance. Aura protectora. Cuerpo a cuerpo.',
+        desc:'Buena resistencia, combate cuerpo a cuerpo. Golpe en cono de luz divina de corto alcance. Al subir de nivel aumenta el rango y el ángulo del cono. Ultra: 8 conos sagrados en 360° más 8 lanzas divinas en todas las direcciones.',
         stats:{hp:'\u25cf\u25cf\u25cf\u25cf\u25cb',spd:'\u25cf\u25cf\u25cb\u25cb\u25cb',atk:'\u25cf\u25cf\u25cf\u25cb\u25cb'}
     },
     {
         id:'hunter', name:'Ryxa', icon:'\ud83c\udff9', hp:40, speed:210,
         weapon:'CrossBow',
-        desc:'Arquera de alcance limitado. Flechas penetrantes con rango definido.',
+        desc:'Equilibrada en todo. Dispara flechas penetrantes con rango definido hacia el enemigo más cercano. Al subir de nivel aumenta el rango. Ultra: 10 flechas envenenadas que aplican veneno de 3 segundos a los impactados.',
         stats:{hp:'\u25cf\u25cf\u25cb\u25cb\u25cb',spd:'\u25cf\u25cf\u25cf\u25cb\u25cb',atk:'\u25cf\u25cf\u25cf\u25cf\u25cb'}
     },
     {
         id:'shaman', name:'Vorath', icon:'\ud83c\udf29\uFE0F', hp:50, speed:180,
         weapon:'Lightning',
-        desc:'Cadenas el\u00e9ctricas de alcance limitado. Rayo salta entre enemigos cercanos.',
+        desc:'Especialista en alcance limitado. Cadena de rayos que salta entre enemigos cercanos; más cadenas al subir de nivel. Ultra: hasta 9 rayos caen sobre los enemigos, aturdiendo a cada uno impactado durante 1.8 segundos.',
         stats:{hp:'\u25cf\u25cf\u25cf\u25cb\u25cb',spd:'\u25cf\u25cf\u25cb\u25cb\u25cb',atk:'\u25cf\u25cf\u25cf\u25cf\u25cb'}
     },
 ];
 
 // ═══ UPGRADES ═══
 const UPGRADES_DB = {
-    'Whip':       { name:'L\u00e1tigo',       icon:'\u3030\uFE0F', desc:'Arco de ataque en direcci\u00f3n del jugador. Aumenta radio al subir.', type:'weapon', bonus:["+radio de ataque", "+daño"] },
-    'MagicWand':  { name:'Varita',       icon:'\ud83e\ude84', desc:'Proyectil al enemigo m\u00e1s cercano. Multi-objetivo al subir.',    type:'weapon', bonus:["+objetivos simultáneos", "+daño"] },
-    'Knife':      { name:'Cuchillo',     icon:'\ud83d\udd2a', desc:'Cuchillo real como proyectil. M\u00e1s cuchillos al subir.',       type:'weapon', bonus:["+cuchillos lanzados", "+velocidad proyectil"] },
-    'Bible':      { name:'Orbe Sagrado', icon:'\ud83d\udcd6', desc:'Orbe orbital con cruz dorada. Hasta 3 orbes al m\u00e1x.',           type:'weapon', bonus:["+orbes orbitales", "+daño"] },
-    'Garlic':     { name:'Aura',         icon:'\ud83e\uddc4', desc:'Da\u00f1o constante cerca del jugador.',                            type:'weapon', bonus:["+radio del aura", "+daño/segundo"] },
-    'HolyStrike': { name:'Golpe Santo',  icon:'\ud83d\udcab', desc:'Cono de luz divina cuerpo a cuerpo. Solo corto alcance.',          type:'weapon', bonus:["+daño del cono", "+ángulo de ataque"] },
-    'Lightning':  { name:'Rayo',         icon:'\u26a1', desc:'Cadena el\u00e9ctrica limitada a 350px. Salta entre enemigos.',            type:'weapon', bonus:["+cadenas de rayo", "+daño"] },
-    'CrossBow':   { name:'Ballesta',     icon:'\ud83c\udff9', desc:'Flecha penetrante con rango definido. No viaja al infinito.',       type:'weapon', bonus:["+penetración", "+daño"] },
-    'Flame':      { name:'Llama',        icon:'\ud83d\udd25', desc:'Zona de fuego persistente con efectos de llama.',                  type:'weapon', bonus:["+área de fuego", "+daño/segundo"] },
-    'Boots':      { name:'Botas',        icon:'\ud83d\udc9f', desc:'Velocidad de movimiento +15%.',                                    type:'stat', bonus:["⚡ Velocidad +15%"] },
-    'Spinach':    { name:'Espinaca',     icon:'\ud83e\udd6c', desc:'Da\u00f1o total +22%.',                                            type:'stat', bonus:["⚔️ Daño total +22%"] },
-    'Armor':      { name:'Armadura',     icon:'\ud83d\udee1\uFE0F', desc:'Reduce da\u00f1o recibido en 3.',                             type:'stat', bonus:["🛡️ Reducción de daño +3"] },
-    'Magnet':     { name:'Im\u00e1n',    icon:'\ud83e\uddf2', desc:'Radio de recogida de gemas +35%.',                                type:'stat', bonus:["🧲 Radio recogida +35%"] },
-    'Regen':      { name:'Regen',        icon:'\ud83d\udc9a', desc:'Regenera 0.4 HP/segundo.',                                         type:'stat', bonus:["❤️ Regeneración +0.4 HP/s"] },
-    'Ultra':      { name:'Ultra+',       icon:'\ud83c\udf00', desc:'+1 carga, -15s recarga, +potencia.',                              type:'stat', bonus:["⚡ +1 carga Ultra", "⏱ -15s recarga"] },
-    'Vampire':    { name:'Vampiro',      icon:'\ud83e\dddb', desc:'Roba 1 HP por cada 5 kills.',                                       type:'stat', bonus:["🩸 +1 HP cada 5 kills"] },
+    'Whip':       { name:'L\u00e1tigo',       icon:'\u3030\uFE0F', desc:'Barre en arco (~130°) hacia donde se mueve el jugador. Cada nivel añade alcance y amplía el arco hasta ~207°.', type:'weapon', bonus:["+radio de ataque", "+daño"] },
+    'MagicWand':  { name:'Varita',       icon:'\ud83e\ude84', desc:'Proyectil mágico al enemigo más cercano cada ~1s. Al subir de nivel dispara a más enemigos simultáneamente (Lv1→1 objetivo, Lv5→5 objetivos).',    type:'weapon', bonus:["+objetivos simultáneos", "+daño"] },
+    'Knife':      { name:'Cuchillo',     icon:'\ud83d\udd2a', desc:'Lanza cuchillos hacia el enemigo m\u00e1s cercano cada 0.5s. Al subir de nivel lanza m\u00e1s cuchillos en abanico al mismo tiempo.',       type:'weapon', bonus:["+cuchillos lanzados", "+velocidad proyectil"] },
+    'Bible':      { name:'Orbe Sagrado', icon:'\ud83d\udcd6', desc:'Orbes que orbitan alrededor del jugador dañando al contacto. Nivel 1: 1 orbe → hasta 5 orbes a nivel máximo. El radio y la velocidad aumentan con cada nivel.',           type:'weapon', bonus:["+orbes orbitales", "+daño"] },
+    'Garlic':     { name:'Aura',         icon:'\ud83e\uddc4', desc:'Aura invisible que daña continuamente a todos los enemigos en rango. Rango inicial 65px, aumenta +12px por nivel.',                            type:'weapon', bonus:["+radio del aura", "+daño/segundo"] },
+    'HolyStrike': { name:'Golpe Santo',  icon:'\ud83d\udcab', desc:'Cono de luz divina de corto alcance (~125px) con ~130° de arco. Cada nivel añade rango y amplía el cono. Alta probabilidad de crítico (28%).',          type:'weapon', bonus:["+daño del cono", "+ángulo de ataque"] },
+    'Lightning':  { name:'Rayo',         icon:'\u26a1', desc:'Rayo que alcanza hasta 350px. Salta al siguiente enemigo cercano: Lv1→1 cadena, +1 cadena cada 2 niveles. El daño se reduce un 20% por salto.',            type:'weapon', bonus:["+cadenas de rayo", "+daño"] },
+    'CrossBow':   { name:'Ballesta',     icon:'\ud83c\udff9', desc:'Flecha rápida (820px/s) con rango de 480px. Apunta al enemigo más cercano dentro del rango. Perfora hasta 3 enemigos. El rango aumenta +35px por nivel.',       type:'weapon', bonus:["+penetración", "+daño"] },
+    'Flame':      { name:'Llama',        icon:'\ud83d\udd25', desc:'Deja una zona de fuego en el suelo que dura ~2.5s y daña a todo lo que toque. Radio y duración aumentan con cada nivel.',                  type:'weapon', bonus:["+área de fuego", "+daño/segundo"] },
+    'Boots':      { name:'Botas',        icon:'\ud83d\udc9f', desc:'Cada mejora aumenta la velocidad de movimiento un 15%. Acumulable.',                                    type:'stat', bonus:["⚡ Velocidad +15%"] },
+    'Spinach':    { name:'Espinaca',     icon:'\ud83e\udd6c', desc:'Cada mejora añade +22% al multiplicador de daño global. Afecta a todas las armas. Acumulable.',                                            type:'stat', bonus:["\u2694\uFE0F Daño total +22%"] },
+    'Armor':      { name:'Armadura',     icon:'\ud83d\udee1\uFE0F', desc:'Reduce todo el daño recibido en 3 puntos fijos. Acumulable. Necesario para evolucionar el Rayo.',                             type:'stat', bonus:["\uD83D\uDEE1\uFE0F Reducción de daño +3"] },
+    'Magnet':     { name:'Im\u00e1n',    icon:'\ud83e\uddf2', desc:'Aumenta el radio en el que las gemas se acercan automáticamente al jugador en un 35%. Acumulable.',                                type:'stat', bonus:["🧲 Radio recogida +35%"] },
+    'Regen':      { name:'Regen',        icon:'\ud83d\udc9a', desc:'Regenera 0.4 HP cada segundo de forma pasiva. Acumulable.',                                         type:'stat', bonus:["❤️ Regeneración +0.4 HP/s"] },
+    'Ultra':      { name:'Ultra+',       icon:'\ud83c\udf00', desc:'Añade +1 carga de Ultra disponible y reduce el tiempo de recarga en 15 segundos. También aumenta la potencia del Ultra.',                              type:'stat', bonus:["⚡ +1 carga Ultra", "⏱ -15s recarga"] },
+    'Vampire':    { name:'Vampiro',      icon:'\ud83e\dddb', desc:'Recupera 1 HP por cada 5 enemigos eliminados. Acumulable. Necesario para evolucionar el Látigo.',                                       type:'stat', bonus:["🩸 +1 HP cada 5 kills"] },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -196,17 +196,17 @@ AchievementStore.load();
 // Add evolved entries to UPGRADES_DB
 UPGRADES_DB['ThunderStorm'] = {
     name:'Tormenta Eterna',   icon:'🌩',
-    desc:'3 orbes eléctricos te orbitan dañando todo. Cadena masiva a 15 enemigos cada 0.75s.',
+    desc:'Fusión de Rayo + Armadura. Tres orbes eléctricos orbitan al jugador. Cada orbe lanza cadenas masivas a hasta 15 enemigos cercanos cada 0.75s.',
     type:'weapon', evolved:true
 };
 UPGRADES_DB['DeathScythe'] = {
     name:'Guadaña Espectral', icon:'🌀',
-    desc:'Barrido 360° que drena vida. Aura espectral pasiva absorbe HP de enemigos cercanos.',
+    desc:'Fusión de Látigo + Vampiro. Barrido espectral de 360° que roba vida con cada golpe. Aura pasiva que absorbe HP de los enemigos cercanos constantemente.',
     type:'weapon', evolved:true
 };
 UPGRADES_DB['HolyNova'] = {
     name:'Nova Sagrada',      icon:'✝️',
-    desc:'Explosión divina masiva + 6 rayos de cruz. Deja zona consagrada que quema a los que entran.',
+    desc:'Fusión de Golpe Santo + Orbe Sagrado. Explosión divina de gran área + 6 rayos en forma de cruz. Deja una zona consagrada en el suelo que quema a todo enemigo que entre.',
     type:'weapon', evolved:true
 };
 

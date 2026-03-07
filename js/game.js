@@ -1065,6 +1065,7 @@ const Game = {
 
     // ─────────────────────────── HUD ─────────────────────────────
     updateHUD() {
+        const dt = this._dt || 0.016;   // fallback 60fps
         const p = this.player;
         document.getElementById('xp-fill').style.width   = (p.xp / p.nextXp * 100) + '%';
         document.getElementById('xp-label').textContent  = `XP ${Math.floor(p.xp)} / ${p.nextXp}`;
@@ -1214,6 +1215,7 @@ const Game = {
     // ─────────────────────────── UPDATE ──────────────────────────
     update(dt) {
         if (this.state !== 'PLAY') return;
+        this._dt = dt;   // cached for updateHUD() called from draw()
 
         this.time += dt;
         // 3-phase difficulty curve — no permanent cap
