@@ -446,6 +446,8 @@ class Enemy extends Entity {
         const col = this.flash > 0 ? '#ffffff' : this.color;
         const glowColor = this.isBoss ? '#ff2244' : (this.elite ? '#ffcc44' : this.color);
         const pulse = 0.7 + Math.sin(t * 2 + this.x * 0.01) * 0.3;
+        // Cheap mode: skip expensive effects when many enemies on screen
+        const cheapMode = !this.isBoss && Game.enemies.length > 25;
 
         // ── Shadow enemy: semi-invisible ─────────────────────────
         if (this.type === 'shadow' && this.invisible) {
@@ -461,23 +463,27 @@ class Enemy extends Entity {
             ctx.globalAlpha = 1;
         }
 
-        // Outer aura ring
-        ctx.globalAlpha = 0.12 * pulse;
-        ctx.fillStyle = glowColor;
-        ctx.shadowColor = glowColor;
-        ctx.shadowBlur = CONFIG.IS_MOBILE ? 10 : 22;
-        ctx.beginPath(); ctx.arc(sx, sy, this.r * 2.2, 0, Math.PI*2); ctx.fill();
+        // Outer aura ring (skip in cheap mode — major perf win)
+        if (!cheapMode) {
+            ctx.globalAlpha = 0.12 * pulse;
+            ctx.fillStyle = glowColor;
+            ctx.shadowColor = glowColor;
+            ctx.shadowBlur = CONFIG.IS_MOBILE ? 10 : 22;
+            ctx.beginPath(); ctx.arc(sx, sy, this.r * 2.2, 0, Math.PI*2); ctx.fill();
+        }
 
-        // Mid glow ring
-        ctx.globalAlpha = 0.25 * pulse;
-        ctx.shadowBlur = CONFIG.IS_MOBILE ? 8 : 16;
-        ctx.beginPath(); ctx.arc(sx, sy, this.r * 1.55, 0, Math.PI*2); ctx.fill();
+        // Mid glow ring (skip in cheap mode)
+        if (!cheapMode) {
+            ctx.globalAlpha = 0.25 * pulse;
+            ctx.shadowBlur = CONFIG.IS_MOBILE ? 8 : 16;
+            ctx.beginPath(); ctx.arc(sx, sy, this.r * 1.55, 0, Math.PI*2); ctx.fill();
+        }
 
         // Core body — translucent spirit
         ctx.globalAlpha = this.type === 'phantom' ? 0.55 + Math.sin(t * 3)*0.2
                         : this.type === 'shadow'  ? (this.invisible ? 0.22 : 0.85)
                         : 0.82;
-        ctx.shadowBlur  = CONFIG.IS_MOBILE ? 6 : 12;
+        ctx.shadowBlur  = cheapMode ? 0 : (CONFIG.IS_MOBILE ? 6 : 12);
         ctx.fillStyle   = col;
         ctx.beginPath();
         if (this.type === 'charger' || this.elite) {
@@ -528,7 +534,7 @@ class Enemy extends Entity {
             if (this.bossType === 0) {
                 // EL COLOSO — red spiky star + lava rings
                 ctx.fillStyle = this.flash > 0 ? '#fff' : '#ff1133';
-                ctx.shadowColor = '#ff3300'; ctx.shadowBlur = 20;
+                ctx.shadowColor = '#ff3300'; ctx.shadowBlur = 10;
                 this._drawStar(ctx, sx, sy, 6, this.r, this.r * 0.45);
                 ctx.fill();
                 ctx.globalAlpha = 0.35;
@@ -545,7 +551,7 @@ class Enemy extends Entity {
             } else if (this.bossType === 1) {
                 // LA TEJEDORA — purple octagon + legs
                 ctx.fillStyle = this.flash>0?'#fff':'#cc44ff';
-                ctx.shadowColor='#aa00ff'; ctx.shadowBlur=22;
+                ctx.shadowColor='#aa00ff'; ctx.shadowBlur=11;
                 ctx.beginPath();
                 for(let i=0;i<8;i++){
                     const a=(Math.PI*2/8)*i+this.angle*0.4;
@@ -572,7 +578,7 @@ class Enemy extends Entity {
             } else if (this.bossType === 2) {
                 // EL LICHE — icy crown + floating crystals
                 ctx.fillStyle = this.flash>0?'#fff':'#002233';
-                ctx.shadowColor='#44eeff'; ctx.shadowBlur=24;
+                ctx.shadowColor='#44eeff'; ctx.shadowBlur=12;
                 ctx.beginPath(); ctx.arc(sx,sy,this.r,0,Math.PI*2); ctx.fill();
                 // Crown spikes
                 ctx.fillStyle=this.flash>0?'#fff':'#44eeff';
@@ -601,7 +607,7 @@ class Enemy extends Entity {
                 // EL ABISMO — void orb with distortion rings
                 const vt = Date.now()*0.002;
                 ctx.fillStyle = this.flash>0?'#fff':'#330055';
-                ctx.shadowColor='#8800ff'; ctx.shadowBlur=30;
+                ctx.shadowColor='#8800ff'; ctx.shadowBlur=14;
                 ctx.beginPath(); ctx.arc(sx,sy,this.r,0,Math.PI*2); ctx.fill();
                 // Distorted outer rings
                 for(let ring=0;ring<4;ring++){
@@ -620,13 +626,14 @@ class Enemy extends Entity {
                 }
                 // Bright void core
                 ctx.globalAlpha=0.8;
+                if (cheapMode) { ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(sx,sy,this.r*0.5,0,Math.PI*2); ctx.fill(); } else {
                 const cg=ctx.createRadialGradient(sx,sy,0,sx,sy,this.r*0.6);
                 cg.addColorStop(0,'rgba(255,255,255,0.9)');
                 cg.addColorStop(0.4,'rgba(180,0,255,0.5)');
                 cg.addColorStop(1,'transparent');
                 ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(sx,sy,this.r*0.6,0,Math.PI*2); ctx.fill();
             }
-            ctx.shadowBlur=0; ctx.globalAlpha=0.9;
+            ctx.shadowBlur=0; ctx.globalAlpha=0.9; }
             // Shared: white core dot + HP bar above
             ctx.fillStyle='#ffffff';
             ctx.beginPath(); ctx.arc(sx,sy,this.r*0.2,0,Math.PI*2); ctx.fill();

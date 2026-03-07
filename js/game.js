@@ -1846,20 +1846,38 @@ const Game = {
         }
 
         if (this._mapImg.complete && this._mapImg.naturalWidth) {
-            const iw = this._mapImg.naturalWidth;   // 677
-            const ih = this._mapImg.naturalHeight;  // 516
+            const iw = this._mapImg.naturalWidth;
+            const ih = this._mapImg.naturalHeight;
             const cx = Game.lw / 2, cy = Game.lh / 2;
-            // World-to-screen offset of (0,0) world origin
             const ox = cx - this.player.x;
             const oy = cy - this.player.y;
-            // Tile the image starting from a multiple of (iw,ih) just off-screen
             const startX = Math.floor((-ox) / iw) * iw + ox;
             const startY = Math.floor((-oy) / ih) * ih + oy;
-            for (let tx = startX - iw; tx < Game.lw + iw; tx += iw) {
-                for (let ty = startY - ih; ty < Game.lh + ih; ty += ih) {
-                    ctx.drawImage(this._mapImg, tx, ty, iw, ih);
+
+            // ── Offscreen cache: only rebuild when scroll exceeds 1 tile ──
+            if (!this._mapCache || !this._mapCacheCtx) {
+                this._mapCache    = document.createElement('canvas');
+                this._mapCache.width  = Game.lw  + iw * 2;
+                this._mapCache.height = Game.lh + ih * 2;
+                this._mapCacheCtx = this._mapCache.getContext('2d');
+                this._mapCacheOriginX = null; // force first draw
+            }
+            // Rebuild cache if origin shifted by >= 1 tile
+            if (this._mapCacheOriginX === null ||
+                Math.abs(startX - this._mapCacheOriginX) >= iw ||
+                Math.abs(startY - this._mapCacheOriginY) >= ih) {
+                this._mapCacheOriginX = startX;
+                this._mapCacheOriginY = startY;
+                const c = this._mapCacheCtx;
+                c.clearRect(0, 0, this._mapCache.width, this._mapCache.height);
+                for (let tx = startX - iw; tx < Game.lw + iw * 2; tx += iw) {
+                    for (let ty = startY - ih; ty < Game.lh + ih * 2; ty += ih) {
+                        c.drawImage(this._mapImg, tx - startX + iw, ty - startY + ih, iw, ih);
+                    }
                 }
             }
+            // Single blit per frame — very cheap
+            ctx.drawImage(this._mapCache, startX - iw, startY - ih);
         } else {
             ctx.fillStyle = '#0c1408';
             ctx.fillRect(0, 0, Game.lw, Game.lh);
@@ -1884,7 +1902,7 @@ const Game = {
                     });
                 }
             }
-            this._torchParticles = Array.from({length: 50}, () => ({
+            this._torchParticles = Array.from({length: 20}, () => ({
                 torchIdx: Math.floor(Math.random() * this._torches.length),
                 life: Math.random(),
                 speed: 0.008 + Math.random() * 0.012,
@@ -1899,13 +1917,11 @@ const Game = {
             const [r,g,b] = t.col;
             const pulse = 0.7 + Math.sin(wt * t.flicker * 3 + t.phase) * 0.3;
 
-            // floor glow
-            const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, 60 * pulse);
-            glow.addColorStop(0,   `rgba(${r},${g},${b},${0.12 * pulse})`);
-            glow.addColorStop(0.6, `rgba(${r},${g},${b},${0.04 * pulse})`);
-            glow.addColorStop(1,   'transparent');
-            ctx.fillStyle = glow;
-            ctx.beginPath(); ctx.arc(sx, sy, 60 * pulse, 0, Math.PI * 2); ctx.fill();
+            // floor glow — simple alpha fill (no gradient = much cheaper)
+            ctx.globalAlpha = 0.09 * pulse;
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.beginPath(); ctx.arc(sx, sy, 55 * pulse, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
 
             // mushroom stem
             ctx.fillStyle = '#1a2a14';
@@ -1945,15 +1961,21 @@ const Game = {
                 col: Math.random()<0.5 ? 'rgba(0,40,10,' : 'rgba(0,20,30,'
             }));
         }
-        this._wisps.forEach(w => {
-            const wx2 = (w.x - off.x) % 1200 + Game.lw/2;
-            const wy2 = (w.y - off.y) % 900  + Game.lh/2;
-            const a   = 0.08 + Math.sin(wt * 0.3 + w.phase) * 0.04;
-            ctx.globalAlpha = a;
-            ctx.fillStyle   = w.col + '1)';
-            ctx.beginPath(); ctx.arc(wx2, wy2, w.r, 0, Math.PI*2); ctx.fill();
-        });
-        ctx.globalAlpha = 1;
+        // Wisps: only draw every other frame to halve cost
+        if (!this._wispFrame) this._wispFrame = 0;
+        this._wispFrame++;
+        if (this._wispFrame % 2 === 0) {
+            this._wisps.forEach(w => {
+                const wx2 = (w.x - off.x) % 1200 + Game.lw/2;
+                const wy2 = (w.y - off.y) % 900  + Game.lh/2;
+                if (wx2 < -w.r || wx2 > Game.lw + w.r || wy2 < -w.r || wy2 > Game.lh + w.r) return;
+                const a   = 0.08 + Math.sin(wt * 0.3 + w.phase) * 0.04;
+                ctx.globalAlpha = a;
+                ctx.fillStyle   = w.col + '1)';
+                ctx.beginPath(); ctx.arc(wx2, wy2, w.r, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
 
         // Decorations (roots/stones overgrown)
         this.decorations.forEach(d => {
@@ -2364,28 +2386,43 @@ const Game = {
 
             ctx.save();
 
-            // Single-pass fog: radial gradient from clear center → dense black outside
-            // Uses clip to avoid redrawing the inside of the arena
-            const fogGrad = ctx.createRadialGradient(sx, sy, ar.r * 0.78, sx, sy, ar.r * 1.6);
-            fogGrad.addColorStop(0,    'rgba(0,0,0,0)');
-            fogGrad.addColorStop(0.25, `rgba(15,0,25,${0.45 * fa})`);
-            fogGrad.addColorStop(0.55, `rgba(6,0,12,${0.82 * fa})`);
-            fogGrad.addColorStop(0.8,  `rgba(2,0,6,${0.96 * fa})`);
-            fogGrad.addColorStop(1,    `rgba(0,0,2,${1.0  * fa})`);
-            ctx.fillStyle = fogGrad;
-            ctx.fillRect(0, 0, Game.lw, Game.lh);
-
-            // Hard black beyond 1.6× radius (single fillRect, no evenodd)
-            if (ar.r * 1.6 < Math.max(Game.lw, Game.lh)) {
-                ctx.save();
-                ctx.globalAlpha = 0.98 * fa;
-                ctx.fillStyle = '#000002';
-                ctx.beginPath();
-                ctx.rect(0, 0, Game.lw, Game.lh);
-                ctx.arc(sx, sy, ar.r * 1.6, 0, Math.PI * 2, true);
-                ctx.fill('evenodd');
-                ctx.restore();
+            // ── Cached fog: only rebuild when alpha changes by 0.05+ ────────
+            // Fog is centered at (0,0) of the cache canvas and blitted by offset
+            const fogSize = Math.ceil(ar.r * 1.7);
+            const cacheW  = fogSize * 2, cacheH = fogSize * 2;
+            if (!this._fogCache || !this._fogCacheCtx) {
+                this._fogCache    = document.createElement('canvas');
+                this._fogCache.width  = cacheW;
+                this._fogCache.height = cacheH;
+                this._fogCacheCtx = this._fogCache.getContext('2d');
+                this._fogCacheAlpha = -1; // force rebuild
             }
+            const alphaStep = Math.floor(fa * 20) / 20; // quantize to 0.05 steps
+            if (this._fogCacheAlpha !== alphaStep) {
+                this._fogCacheAlpha = alphaStep;
+                const fc  = this._fogCacheCtx;
+                const cx2 = cacheW / 2, cy2 = cacheH / 2;
+                fc.clearRect(0, 0, cacheW, cacheH);
+                // Radial fog gradient (rebuilt ~20 times total as alpha ramps up)
+                const fg = fc.createRadialGradient(cx2, cy2, ar.r * 0.78, cx2, cy2, ar.r * 1.6);
+                fg.addColorStop(0,    'rgba(0,0,0,0)');
+                fg.addColorStop(0.25, `rgba(15,0,25,${0.45 * alphaStep})`);
+                fg.addColorStop(0.55, `rgba(6,0,12,${0.82 * alphaStep})`);
+                fg.addColorStop(0.8,  `rgba(2,0,6,${0.96 * alphaStep})`);
+                fg.addColorStop(1,    `rgba(0,0,2,${1.0  * alphaStep})`);
+                fc.fillStyle = fg;
+                fc.fillRect(0, 0, cacheW, cacheH);
+                // Hard black beyond radius
+                fc.globalAlpha = 0.98 * alphaStep;
+                fc.fillStyle = '#000002';
+                fc.beginPath();
+                fc.rect(0, 0, cacheW, cacheH);
+                fc.arc(cx2, cy2, ar.r * 1.6, 0, Math.PI * 2, true);
+                fc.fill('evenodd');
+                fc.globalAlpha = 1;
+            }
+            // Single cheap blit per frame
+            ctx.drawImage(this._fogCache, sx - cacheW/2, sy - cacheH/2);
 
             // Barrier ring (1 stroke only, no shadowBlur loop)
             // Boss spawning ritual visual

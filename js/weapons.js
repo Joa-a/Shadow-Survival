@@ -741,12 +741,15 @@ const WeaponFactory = {
             const rat = f.life / f.maxLife;
             ctx.save();
             ctx.globalAlpha = rat * 0.55;
-            const g = ctx.createRadialGradient(sx,sy,0,sx,sy,f.r);
-            g.addColorStop(0,   'rgba(255,230, 80,0.95)');
-            g.addColorStop(0.4, 'rgba(255,110, 20,0.70)');
-            g.addColorStop(0.75,'rgba(200, 30, 10,0.40)');
-            g.addColorStop(1,   'rgba(180,  0,  0,0)');
-            ctx.fillStyle = g;
+            // Cheap fire: two concentric circles instead of gradient
+            const g = { addColorStop: ()=>{} }; // stub — unused below
+            ctx.fillStyle = `rgba(255,180,30,${rat*0.55})`;
+            ctx.beginPath(); ctx.arc(sx, sy, f.r * 0.5, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = rat * 0.25;
+            ctx.fillStyle = 'rgba(200,40,10,0.6)';
+            ctx.beginPath(); ctx.arc(sx, sy, f.r * 0.9, 0, Math.PI*2); ctx.fill();
+            const _skipGradFill = true;
+            if (!_skipGradFill) ctx.fillStyle = g;
             ctx.beginPath(); ctx.arc(sx,sy,f.r,0,Math.PI*2); ctx.fill();
             // Flicker petals
             ctx.globalAlpha = rat * 0.38;
