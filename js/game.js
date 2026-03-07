@@ -119,7 +119,7 @@ const Game = {
                 <h3>${c.name}</h3>
                 <p>${c.desc}</p>
                 <div class="char-stats-bars">${statBars}</div>
-                <div class="char-weapon-tag" title="${weaponDesc}">${weaponIcon} ${weaponName}</div>
+                ${c.id !== 'warrior' ? `<div class="char-weapon-tag" title="${weaponDesc}">${weaponIcon} ${weaponName}</div>` : ''}
             `;
             const sel = () => {
                 document.querySelectorAll('.char-card').forEach(el => el.classList.remove('selected'));
@@ -689,7 +689,7 @@ const Game = {
     },
 
     spawnParticle(x, y, color, count = 6) {
-        if (this.particles.length > CONFIG.PARTICLE_LIMIT) return;
+        if (this.particles.length > (CONFIG.IS_MOBILE ? CONFIG.PARTICLE_LIMIT_MOBILE : CONFIG.PARTICLE_LIMIT)) return;
         for (let i = 0; i < count; i++) {
             const a = Math.random() * Math.PI * 2, s = 1.5 + Math.random() * 6;
             this.particles.push({
@@ -1273,9 +1273,10 @@ const Game = {
             : Math.max(0.08, 0.16 - (this.time - 360) / 900); // 6+ min: relentless
         // Frenetic: 2.5x faster spawns
         const spawnInterval = isFrenetic ? spawnBase / 2.5 : spawnBase;
+        const enemyLimit = CONFIG.IS_MOBILE ? CONFIG.ENEMY_LIMIT_MOBILE : CONFIG.ENEMY_LIMIT;
         const maxOnScreen = isFrenetic
-            ? Math.min(CONFIG.ENEMY_LIMIT, Math.floor(25 + this.time / 3))
-            : Math.min(CONFIG.ENEMY_LIMIT, Math.floor(12 + this.time / 4));
+            ? Math.min(enemyLimit, Math.floor(25 + this.time / 3))
+            : Math.min(enemyLimit, Math.floor(12 + this.time / 4));
         this.spawnTimer += dt;
         // No regular enemy spawns while a boss is alive
         if (!this.currentBoss && this.spawnTimer >= spawnInterval && this.enemies.filter(e => !e.isBoss).length < maxOnScreen) {
@@ -1810,6 +1811,13 @@ const Game = {
     draw() {
         const ctx = this.ctx;
         const dpr = this._dpr || 1;
+        // On mobile: patch ctx to skip all shadowBlur (biggest Canvas2D perf win)
+        if (CONFIG.IS_MOBILE && !ctx._mobilePatchApplied) {
+            ctx._mobilePatchApplied = true;
+            const _orig = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+            Object.defineProperty(ctx, 'shadowBlur', { set: ()=>{}, get: ()=>0 });
+            Object.defineProperty(ctx, 'shadowColor', { set: ()=>{}, get: ()=>'transparent' });
+        }
         // Reapply DPR transform — assigning canvas.width resets the context transform
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         // ── DARK FOREST background ─────────────────────────────────
@@ -1938,8 +1946,8 @@ const Game = {
             ctx.beginPath(); ctx.arc(sx + 2, sy - 6, 0.8, 0, Math.PI*2); ctx.fill();
         });
 
-        // Floating spores
-        this._torchParticles.forEach(p => {
+        // Floating spores: skip on mobile
+        if (!CONFIG.IS_MOBILE) this._torchParticles.forEach(p => {
             p.life += p.speed;
             if (p.life > 1) { p.life = 0; p.torchIdx = Math.floor(Math.random() * this._torches.length); p.ox = (Math.random()-0.5)*8; }
             const t2  = this._torches[p.torchIdx];
@@ -1961,9 +1969,10 @@ const Game = {
                 col: Math.random()<0.5 ? 'rgba(0,40,10,' : 'rgba(0,20,30,'
             }));
         }
-        // Wisps: only draw every other frame to halve cost
+        // Wisps: skip on mobile, every-other-frame on desktop
         if (!this._wispFrame) this._wispFrame = 0;
         this._wispFrame++;
+        if (CONFIG.IS_MOBILE) this._wispFrame = 1; // always skip on mobile
         if (this._wispFrame % 2 === 0) {
             this._wisps.forEach(w => {
                 const wx2 = (w.x - off.x) % 1200 + Game.lw/2;
