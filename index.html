@@ -128,6 +128,67 @@
 </div>
 
 <!-- CHARACTER SELECT -->
+<!-- LOBBY SCREEN -->
+<div id="lobby-screen" class="overlay" style="display:none;">
+    <div class="title-main">☽ SHADOW SURVIVOR</div>
+
+    <div class="lobby-section">
+        <div class="lobby-section-title">⚔ MODO DE JUEGO</div>
+        <div class="lobby-mode-row">
+            <button class="lobby-mode-btn lobby-mode-active" id="lob-mode-normal" data-mode="normal">
+                <span class="lob-mode-icon">●</span>
+                <span class="lob-mode-name">NORMAL</span>
+                <span class="lob-mode-desc">Ritmo equilibrado</span>
+            </button>
+            <button class="lobby-mode-btn" id="lob-mode-frenetic" data-mode="frenetic">
+                <span class="lob-mode-icon">⚡</span>
+                <span class="lob-mode-name">FRENÉTICO</span>
+                <span class="lob-mode-desc">2.5× más caos</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="lobby-section">
+        <div class="lobby-section-title">🗺 MAPA</div>
+        <div class="lobby-mode-row">
+            <button class="lobby-map-btn lobby-map-active" data-map="dark_forest">
+                <span class="lob-mode-icon">🌲</span>
+                <span class="lob-mode-name">BOSQUE OSCURO</span>
+                <span class="lob-mode-desc">Disponible</span>
+            </button>
+            <button class="lobby-map-btn lobby-locked" data-map="coming_soon" disabled>
+                <span class="lob-mode-icon">🔒</span>
+                <span class="lob-mode-name">PRÓXIMAMENTE</span>
+                <span class="lob-mode-desc">En desarrollo</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="lobby-section">
+        <div class="lobby-section-title">👾 ENEMIGOS</div>
+        <div class="lobby-mode-row">
+            <button class="lobby-map-btn lobby-map-active" data-enemies="default">
+                <span class="lob-mode-icon">👻</span>
+                <span class="lob-mode-name">ESPECTROS</span>
+                <span class="lob-mode-desc">Disponible</span>
+            </button>
+            <button class="lobby-map-btn lobby-locked" data-enemies="coming_soon" disabled>
+                <span class="lob-mode-icon">🔒</span>
+                <span class="lob-mode-name">PRÓXIMAMENTE</span>
+                <span class="lob-mode-desc">En desarrollo</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="lobby-footer-btns">
+        <button class="btn-main" id="btn-lobby-play">⚔ &nbsp; ELEGIR GUERRERO</button>
+        <div class="lobby-sub-btns">
+            <button class="btn-secondary lb-trigger-btn" id="btn-show-lb">🏆 RANKING</button>
+            <button class="btn-secondary" onclick="Auth.logout()" style="font-size:9px;color:#443344;">↩ CAMBIAR USUARIO</button>
+        </div>
+    </div>
+</div>
+
 <div id="start-screen" class="overlay">
     <div class="title-main">&#9789; SHADOW SURVIVOR</div>
     <div class="title-sub">ELIGE TU GUERRERO</div>
@@ -160,7 +221,7 @@
         <button class="btn-secondary" onclick="Game.togglePause()">&#9654; REANUDAR</button>
         <button class="btn-secondary lb-trigger-btn" id="pause-show-lb">🏆 RANKING</button>
         <button class="btn-secondary" onclick="location.reload()">&#8635; REINICIAR</button>
-        <button class="btn-secondary" onclick="Auth.logout()" style="font-size:9px;color:#443344;">↩ CAMBIAR USUARIO</button>
+
     </div>
 </div>
 

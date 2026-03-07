@@ -77,9 +77,32 @@ const Game = {
     runLoadingScreen() {
         Intro.startLoading(() => {
             Intro.showTitle(() => {
-                this.showCharSelect();
+                this.showLobby();
             });
         });
+    },
+
+    showLobby() {
+        this.state = 'LANDING';
+        const lobby = document.getElementById('lobby-screen');
+        lobby.style.display = 'flex';
+
+        // Mode buttons
+        document.querySelectorAll('.lobby-mode-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.lobby-mode-btn').forEach(b => b.classList.remove('lobby-mode-active'));
+                btn.classList.add('lobby-mode-active');
+                this.gameMode = btn.dataset.mode;
+                // Update frenetic badge
+                const badge = document.getElementById('frenetic-badge');
+                if (badge) badge.style.display = this.gameMode === 'frenetic' ? 'block' : 'none';
+            };
+        });
+
+        document.getElementById('btn-lobby-play').onclick = () => {
+            lobby.style.display = 'none';
+            this.showCharSelect();
+        };
     },
 
     showCharSelect() {
