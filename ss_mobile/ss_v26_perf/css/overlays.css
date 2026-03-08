@@ -100,7 +100,14 @@
     padding-right: 16px;
     gap: 10px;
 }
-
+/* Combat button always sticky at bottom on mobile */
+#btn-start-game {
+    position: sticky;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    z-index: 10;
+    width: 92%;
+    max-width: 340px;
+}
 #start-screen::before {
     content:''; position:absolute; inset:0;
     background:radial-gradient(ellipse at 50% 0%, rgba(255,34,85,0.12) 0%, transparent 60%),
@@ -338,19 +345,4 @@
     color: #88ccff;
     background: rgba(100, 180, 255, 0.08);
     border-color: rgba(100, 180, 255, 0.25);
-}
-
-.start-footer-sticky {
-    position: sticky;
-    bottom: 0;
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    padding: 16px 0 calc(env(safe-area-inset-bottom, 0px) + 16px);
-    background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.97) 35%);
-    z-index: 10;
-}
-.start-footer-sticky .btn-main {
-    width: 92%;
-    max-width: 340px;
 }
