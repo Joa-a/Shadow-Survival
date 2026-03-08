@@ -73,6 +73,7 @@ async function handle(request, env) {
       kills:  Math.max(0, Math.floor(Number(body.kills) || 0)),
       level:  Math.max(1, Math.floor(Number(body.level) || 1)),
       mode:   body.mode === 'frenetic' ? 'frenetic' : 'normal',
+      map:    ['dark_forest','cemetery'].includes(body.map) ? body.map : 'dark_forest',
       date:   new Date().toISOString(),
     };
 
@@ -160,7 +161,39 @@ async function handle(request, env) {
     return json({ available: !exists });
   }
 
-  return json({ ok: true, endpoints: ['GET /scores', 'POST /scores', 'POST /register', 'POST /recover', 'POST /check-name'] });
+
+  // GET /souls?name=xxx — load soul data for a user
+  if (method === 'GET' && path === '/souls') {
+    if (!env.SCORES) return json({ error: 'KV no configurado.' }, 503);
+    const name = url.searchParams.get('name') || '';
+    if (!name) return json({ error: 'Nombre requerido' }, 400);
+    const key = 'souls:' + name.toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 20);
+    const raw = await env.SCORES.get(key);
+    if (!raw) return json({ total: 0, owned: [], passives: {}, skin: 'default' });
+    return json(JSON.parse(raw));
+  }
+
+  // POST /souls — save soul data for a user
+  if (method === 'POST' && path === '/souls') {
+    if (!env.SCORES) return json({ error: 'KV no configurado.' }, 503);
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ error: 'JSON invalido' }, 400); }
+    const name = String(body.name || '').trim().slice(0, 16);
+    if (!name) return json({ error: 'Nombre requerido' }, 400);
+    const key = 'souls:' + name.toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 20);
+    const data = {
+      total:    Math.max(0, Math.floor(Number(body.total)  || 0)),
+      owned:    Array.isArray(body.owned)   ? body.owned   : [],
+      passives: typeof body.passives === 'object' ? body.passives : {},
+      skin:     String(body.skin || 'default').slice(0, 32),
+      updated:  new Date().toISOString(),
+    };
+    await env.SCORES.put(key, JSON.stringify(data));
+    return json({ ok: true });
+  }
+
+  return json({ ok: true, endpoints: ['GET /scores', 'POST /scores', 'GET /souls', 'POST /souls', 'POST /register', 'POST /recover', 'POST /check-name'] });
 }
 
 // Simple SHA-256 PIN hash using Web Crypto (available in Workers)

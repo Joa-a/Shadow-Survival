@@ -88,6 +88,12 @@ const Game = {
         const lobby = document.getElementById('lobby-screen');
         lobby.style.display = 'flex';
 
+        // Load souls from server (async — updates HUD when ready)
+        Souls.load().then(() => {
+            const el = document.getElementById('souls-hud');
+            if (el) el.textContent = '👻 ' + Souls.total;
+        });
+
         // Mode buttons
         document.querySelectorAll('.lobby-mode-btn').forEach(btn => {
             btn.onclick = () => {
@@ -154,15 +160,32 @@ const Game = {
         this.initCharSelection();
         this.initControls();
         document.getElementById('start-screen').style.display = 'flex';
+
+        const backBtn = document.getElementById('btn-back-to-lobby');
+        if (backBtn && !backBtn._bound) {
+            backBtn._bound = true;
+            const goBack = () => {
+                document.getElementById('start-screen').style.display = 'none';
+                this.showLobby();
+            };
+            backBtn.onclick = goBack;
+            backBtn.ontouchend = e => { e.preventDefault(); goBack(); };
+        }
     },
 
     // ─────────────────────────── UI SETUP ────────────────────────
     initCharSelection() {
         const grid = document.getElementById('char-selection');
         grid.innerHTML = '';
+
+        // Characters that need shop unlock
+        const SHOP_LOCKED = { 'mage':'char_zale', 'rogue':'char_kael', 'cleric':'char_elora', 'hunter':'char_ryxa', 'shaman':'char_vorath' };
+
         CHARACTERS.forEach(c => {
             const card = document.createElement('div');
-            card.className = 'char-card';
+            const shopId  = SHOP_LOCKED[c.id];
+            const isLocked = shopId && !Souls.has(shopId);
+            card.className = 'char-card' + (isLocked ? ' char-locked' : '');
 
             // Convert dot stats to bar percentages
             const statBars = Object.entries(c.stats).map(([k, v]) => {
@@ -181,24 +204,45 @@ const Game = {
             const weaponName = UPGRADES_DB[c.weapon]?.name || c.weapon;
             const weaponIcon = UPGRADES_DB[c.weapon]?.icon || '?';
             const weaponDesc = UPGRADES_DB[c.weapon]?.desc || '';
-            card.innerHTML = `
-                <div class="char-icon">${c.icon}</div>
-                <h3>${c.name}</h3>
-                <p>${c.desc}</p>
-                <div class="char-stats-bars">${statBars}</div>
-                ${c.id !== 'warrior' ? `<div class="char-weapon-tag" title="${weaponDesc}">${weaponIcon} ${weaponName}</div>` : ''}
-            `;
-            const sel = () => {
-                document.querySelectorAll('.char-card').forEach(el => el.classList.remove('selected'));
-                card.classList.add('selected');
-                this.selectedChar = c;
-            };
-            card.onclick = sel;
-            card.addEventListener('touchend', e => { e.preventDefault(); sel(); });
+
+            if (isLocked) {
+                const item = typeof SHOP_ITEMS !== 'undefined'
+                    ? SHOP_ITEMS.find(i => i.id === shopId) : null;
+                const cost = item?.cost || 500;
+                card.innerHTML = `
+                    <div class="char-lock-overlay">
+                        <div class="char-lock-icon">🔒</div>
+                        <div class="char-lock-name">${c.name}</div>
+                        <div class="char-lock-cost">👻 ${cost} almas</div>
+                        <div class="char-lock-hint">Desbloquea en el Altar</div>
+                    </div>
+                    <div class="char-icon char-icon-blur">${c.icon}</div>
+                    <h3 style="filter:blur(3px)">${c.name}</h3>
+                    <div class="char-stats-bars" style="filter:blur(2px)">${statBars}</div>
+                `;
+            } else {
+                card.innerHTML = `
+                    <div class="char-icon">${c.icon}</div>
+                    <h3>${c.name}</h3>
+                    <p>${c.desc}</p>
+                    <div class="char-stats-bars">${statBars}</div>
+                    ${c.id !== 'warrior' ? `<div class="char-weapon-tag" title="${weaponDesc}">${weaponIcon} ${weaponName}</div>` : ''}
+                `;
+                const sel = () => {
+                    document.querySelectorAll('.char-card').forEach(el => el.classList.remove('selected'));
+                    card.classList.add('selected');
+                    this.selectedChar = c;
+                };
+                card.onclick = sel;
+                card.addEventListener('touchend', e => { e.preventDefault(); sel(); });
+            }
             grid.appendChild(card);
         });
-        this.selectedChar = CHARACTERS[0];
-        grid.children[0].classList.add('selected');
+
+        // Select first unlocked character
+        const firstUnlocked = CHARACTERS.find(c => !SHOP_LOCKED[c.id] || Souls.has(SHOP_LOCKED[c.id]));
+        this.selectedChar = firstUnlocked || CHARACTERS[0];
+        grid.querySelectorAll('.char-card:not(.char-locked)')[0]?.classList.add('selected');
     },
 
     initControls() {
@@ -683,6 +727,13 @@ const Game = {
         document.getElementById('start-screen').style.display    = 'none';
         document.getElementById('boss-hud').style.display        = 'none';
         document.getElementById('gameover-screen').style.display = 'none';
+
+        // Show all HUD and controls now that the game is starting
+        ['hud','buff-bar','hp-container','hp-label','weapon-bar','minimap','pause-btn','mobile-ui'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = '';
+        });
+
         // Show player name in HUD
         if (typeof Auth !== 'undefined') Auth._showLoggedIn();
 
@@ -2702,6 +2753,7 @@ const Game = {
             }
         }
 
+        Souls.flush(); // save to server immediately on game over
         setTimeout(() => document.getElementById('gameover-screen').style.display = 'flex', 500);
     },
 

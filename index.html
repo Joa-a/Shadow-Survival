@@ -75,7 +75,7 @@
 <div id="kill-milestone"></div>
 
 <!-- HUD -->
-<div id="hud">
+<div id="hud" style="display:none">
     <div id="souls-hud">👻 0</div>
     <div class="xp-container"><div id="xp-fill"></div></div>
     <div id="xp-label">XP</div>
@@ -100,19 +100,19 @@
     </div>
 </div>
 
-<div id="frenetic-badge">⚡ FRENÉTICO</div>
+<div id="frenetic-badge" style="display:none">⚡ FRENÉTICO</div>
     <div id="hud-player-name" class="hud-player-name" style="display:none"></div>
-<div id="buff-bar"></div>
-<div id="hp-container"><div id="hp-fill"></div></div>
-<div id="hp-label">HP</div>
-<div id="weapon-bar"></div>
+<div id="buff-bar" style="display:none"></div>
+<div id="hp-container" style="display:none"><div id="hp-fill"></div></div>
+<div id="hp-label" style="display:none">HP</div>
+<div id="weapon-bar" style="display:none"></div>
 
-<div id="minimap">
+<div id="minimap" style="display:none">
     <canvas id="minimap-canvas" width="110" height="110"></canvas>
     <div id="minimap-label">RADAR</div>
 </div>
 
-<div id="achievement-popup">
+<div id="achievement-popup" style="display:none">
     <div class="ach-header">
         <span class="ach-icon" id="ach-icon">&#127942;</span>
         <div>
@@ -124,9 +124,9 @@
     <div class="ach-desc" id="ach-desc"></div>
 </div>
 
-<button id="pause-btn">&#9208; PAUSA</button>
+<button id="pause-btn" style="display:none">&#9208; PAUSA</button>
 
-<div id="mobile-ui">
+<div id="mobile-ui" style="display:none">
     <div class="joystick-area" id="joy-base"><div id="stick"></div></div>
     <div class="action-btn" id="btn-burst">ULTRA<br>&#9889;</div>
 </div>
@@ -179,6 +179,7 @@
 </div>
 
 <div id="start-screen" class="overlay">
+    <button class="back-btn" id="btn-back-to-lobby">&#8592; VOLVER</button>
     <div class="title-main">&#9789; SHADOW SURVIVOR</div>
     <div class="title-sub">ELIGE TU GUERRERO</div>
     <div class="char-grid" id="char-selection"></div>
@@ -248,5 +249,6 @@
         <div id="souls-shop-content" class="souls-shop-content"></div>
     </div>
 </div>
+<script>window.addEventListener('beforeunload', () => Souls.flush());</script>
 </body>
 </html>

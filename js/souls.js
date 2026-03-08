@@ -2,42 +2,127 @@
 'use strict';
 
 const Souls = {
-    // ── Data ──────────────────────────────────────────────────────
-    _key: 'ss_souls',
-    _ownedKey: 'ss_owned',
-    _passivesKey: 'ss_passives',
+    // ── Anti-duplication sync architecture ──────────────────────
+    // _confirmed = last value ACKed by server (or loaded from it)
+    // _pending   = earned since last successful server sync
+    // total shown = _confirmed + _pending
+    // On successful save: _confirmed = total, _pending = 0
+    // On load: _confirmed = serverValue, _pending stays separate
+    // This means reconnecting NEVER double-counts.
+    _confirmed: { total: 0, owned: [], passives: {}, skin: 'default' },
+    _pending:   0,          // souls earned but not yet ACKed by server
+    _syncTimer: null,
+    _saving:    false,      // prevent concurrent saves
 
-    get total() {
-        try { return parseInt(localStorage.getItem(this._key) || '0'); } catch(e) { return 0; }
-    },
-    set total(v) {
-        try { localStorage.setItem(this._key, Math.max(0, Math.floor(v))); } catch(e) {}
+    // ── Getters ───────────────────────────────────────────────────
+    get total()        { return this._confirmed.total + this._pending; },
+    get owned()        { return this._confirmed.owned; },
+    get passives()     { return this._confirmed.passives; },
+    get equippedSkin() { return this._confirmed.skin; },
+
+    // Setters for non-total fields (owned, passives, skin)
+    set owned(v)        { this._confirmed.owned    = v; this._scheduleSave(); },
+    set passives(v)     { this._confirmed.passives = v; this._scheduleSave(); },
+    set equippedSkin(v) { this._confirmed.skin     = v; this._scheduleSave(); },
+
+    _apiUrl()  { return (typeof Auth !== 'undefined' && Auth.API_URL)     ? Auth.API_URL         : null; },
+    _userName(){ return (typeof Auth !== 'undefined' && Auth.currentUser) ? Auth.currentUser.name : null; },
+
+    // ── Load ──────────────────────────────────────────────────────
+    async load() {
+        // Restore any pending delta from localStorage first
+        try {
+            const p = parseInt(localStorage.getItem('ss_souls_pending') || '0');
+            this._pending = Math.max(0, p);
+        } catch(e) {}
+
+        const name = this._userName();
+        const api  = this._apiUrl();
+        if (name && api) {
+            try {
+                const res = await fetch(`${api}/souls?name=${encodeURIComponent(name)}`);
+                if (res.ok) {
+                    const d = await res.json();
+                    // Server value is ground truth for confirmed — pending stays separate
+                    this._confirmed = {
+                        total:    d.total    || 0,
+                        owned:    d.owned    || [],
+                        passives: d.passives || {},
+                        skin:     d.skin     || 'default',
+                    };
+                    // If we have pending, schedule a save to push it to server
+                    if (this._pending > 0) this._scheduleSave();
+                    return;
+                }
+            } catch(e) { console.warn('[Souls] Server load failed, using local', e); }
+        }
+
+        // Offline fallback — restore confirmed from localStorage
+        try {
+            const saved = localStorage.getItem('ss_souls_confirmed');
+            if (saved) this._confirmed = JSON.parse(saved);
+        } catch(e) {}
     },
 
-    get owned() {
-        try { return JSON.parse(localStorage.getItem(this._ownedKey) || '[]'); } catch(e) { return []; }
-    },
-    set owned(v) {
-        try { localStorage.setItem(this._ownedKey, JSON.stringify(v)); } catch(e) {}
-    },
-
-    get equippedSkin() {
-        try { return localStorage.getItem('ss_skin') || 'default'; } catch(e) { return 'default'; }
-    },
-    set equippedSkin(v) {
-        try { localStorage.setItem('ss_skin', v); } catch(e) {}
+    // ── Save ──────────────────────────────────────────────────────
+    _persistLocal() {
+        // Always persist both parts to localStorage so nothing is lost
+        try {
+            localStorage.setItem('ss_souls_confirmed', JSON.stringify(this._confirmed));
+            localStorage.setItem('ss_souls_pending',   String(this._pending));
+        } catch(e) {}
     },
 
-    get passives() {
-        try { return JSON.parse(localStorage.getItem(this._passivesKey) || '{}'); } catch(e) { return {}; }
-    },
-    set passives(v) {
-        try { localStorage.setItem(this._passivesKey, JSON.stringify(v)); } catch(e) {}
+    _scheduleSave() {
+        this._persistLocal();
+        if (this._syncTimer) clearTimeout(this._syncTimer);
+        this._syncTimer = setTimeout(() => this._saveToServer(), 3000);
     },
 
+    async _saveToServer() {
+        if (this._saving) return; // prevent concurrent saves
+        const name = this._userName();
+        const api  = this._apiUrl();
+        if (!name || !api) return;
+        this._saving = true;
+        try {
+            // Snapshot total at save time — this is what we tell the server
+            const totalToSave = this._confirmed.total + this._pending;
+            const payload = {
+                name,
+                total:    totalToSave,
+                owned:    this._confirmed.owned,
+                passives: this._confirmed.passives,
+                skin:     this._confirmed.skin,
+            };
+            const res = await fetch(`${api}/souls`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify(payload),
+            });
+            if (res.ok) {
+                // Server ACKed — move pending into confirmed, clear pending
+                this._confirmed.total = totalToSave;
+                this._pending = 0;
+                this._persistLocal();
+            }
+        } catch(e) {
+            console.warn('[Souls] Server save failed, will retry', e);
+            // pending stays intact — will retry on next scheduleSave
+        } finally {
+            this._saving = false;
+        }
+    },
+
+    async flush() {
+        if (this._syncTimer) clearTimeout(this._syncTimer);
+        await this._saveToServer();
+    },
+
+    // ── Add souls (only increments pending) ───────────────────────
     add(amount) {
-        this.total = this.total + amount;
-        // Flash the HUD counter
+        this._pending += Math.max(0, Math.floor(amount));
+        this._scheduleSave();
         const el = document.getElementById('souls-hud');
         if (el) {
             el.textContent = '👻 ' + this.total;
@@ -52,10 +137,19 @@ const Souls = {
         if (!item) return false;
         if (this.owned.includes(itemId)) return false;
         if (this.total < item.cost) return false;
-        this.total = this.total - item.cost;
+        // Deduct from pending first, then from confirmed
+        const cost = item.cost;
+        if (this._pending >= cost) {
+            this._pending -= cost;
+        } else {
+            const remainder = cost - this._pending;
+            this._pending = 0;
+            this._confirmed.total = Math.max(0, this._confirmed.total - remainder);
+        }
         const o = this.owned;
         o.push(itemId);
-        this.owned = o;
+        this._confirmed.owned = o;
+        this._scheduleSave();
         return true;
     },
 
@@ -202,7 +296,10 @@ const SHOP_ITEMS = [
     { id:'passive_speed',    type:'passive', icon:'👟', name:'+8% Velocidad',   desc:'Te mueves un poco más rápido desde el inicio',   cost:200 },
     { id:'passive_cooldown', type:'passive', icon:'⚡', name:'-8% Cooldown',    desc:'Tus armas disparan un poco más seguido',         cost:300 },
 
-    // Characters (locked by default — check CHARACTERS array)
-    { id:'char_ryxa',   type:'character', icon:'🏹', name:'Ryxa',   desc:'Cazadora de élite con flechas venenosas', cost:500 },
-    { id:'char_vorath', type:'character', icon:'⚡', name:'Vorath', desc:'Chamán del trueno, maestro del rayo',     cost:500 },
+    // Characters — all locked except Alaric
+    { id:'char_zale',   type:'character', icon:'🔮', name:'Zale',   desc:'Mago de daño máximo, proyectiles mágicos', cost:250 },
+    { id:'char_kael',   type:'character', icon:'🗡️', name:'Kael',   desc:'El más rápido, maestro del cuchillo',      cost:250 },
+    { id:'char_elora',  type:'character', icon:'✨', name:'Elora',  desc:'Clérigo resistente, golpe de luz divina',  cost:250 },
+    { id:'char_ryxa',   type:'character', icon:'🏹', name:'Ryxa',   desc:'Cazadora con flechas venenosas',           cost:250 },
+    { id:'char_vorath', type:'character', icon:'⚡', name:'Vorath', desc:'Chamán del trueno, maestro del rayo',      cost:250 },
 ];

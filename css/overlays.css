@@ -503,3 +503,53 @@
 /* lobby sub-btns: 3 buttons */
 .lobby-sub-btns { display: flex; gap: 8px; width: 100%; max-width: 340px; flex-wrap: wrap; }
 .lobby-sub-btns .btn-secondary { flex: 1; min-width: 80px; font-size: 8px; padding: 10px 4px; }
+
+/* ── Back button ── */
+.back-btn {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px solid #332244;
+    color: #665577;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px; letter-spacing: 2px;
+    padding: 8px 16px; border-radius: 4px;
+    cursor: pointer; transition: all 0.2s;
+    margin-bottom: 8px;
+}
+.back-btn:hover, .back-btn:active {
+    border-color: #8844ff;
+    color: #aa88ff;
+}
+
+/* ── Locked character cards ── */
+.char-locked {
+    cursor: not-allowed;
+    position: relative;
+    overflow: hidden;
+    border-color: #221133 !important;
+}
+.char-locked:hover { border-color: #331144 !important; transform: none !important; }
+.char-lock-overlay {
+    position: absolute; inset: 0;
+    background: rgba(6,3,14,0.88);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 5px; z-index: 2;
+    border-radius: 8px;
+}
+.char-lock-icon  { font-size: 28px; }
+.char-lock-name  {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px; letter-spacing: 2px;
+    color: #664477;
+}
+.char-lock-cost  {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px; color: #aa88ff;
+    letter-spacing: 1px;
+}
+.char-lock-hint  {
+    font-size: 8px; color: #443355;
+    letter-spacing: 1px;
+}
+.char-icon-blur { filter: blur(4px); opacity: 0.3; }
