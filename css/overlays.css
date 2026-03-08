@@ -354,3 +354,30 @@
     width: 92%;
     max-width: 340px;
 }
+
+/* ── Leaderboard map tabs ── */
+.lb-map-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    width: 100%;
+}
+.lb-map-tab {
+    flex: 1;
+    padding: 8px 6px;
+    background: rgba(12,8,22,0.9);
+    border: 1px solid #251535;
+    border-radius: 6px;
+    color: #554466;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.lb-map-tab:hover { border-color: #553355; color: #aa88bb; }
+.lb-map-tab-active {
+    border-color: var(--primary) !important;
+    background: rgba(255,34,85,0.1) !important;
+    color: var(--primary) !important;
+}

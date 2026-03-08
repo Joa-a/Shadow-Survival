@@ -238,6 +238,7 @@ const Auth = {
             kills:  kills  || 0,
             level:  level  || 1,
             mode:   mode   || 'normal',
+            map:    (arguments[0].map) || 'dark_forest',
             date:   new Date().toISOString(),
         };
 
@@ -275,9 +276,10 @@ const Auth = {
     },
 
     // ── RENDER LEADERBOARD ─────────────────────────────────────
-    async renderLeaderboard(containerId) {
+    async renderLeaderboard(containerId, mapFilter) {
         const container = document.getElementById(containerId);
         if (!container) return;
+        this._lbMapFilter = mapFilter || 'dark_forest';
         container.innerHTML = '<div class="lb-loading">⏳ Cargando ranking…</div>';
 
         let board = [], isGlobal = false;
@@ -304,10 +306,13 @@ const Auth = {
             board.sort((a, b) => b.time - a.time);
         }
 
-        this._renderBoard(container, board, isGlobal);
+        // Filter by map
+        const mf = this._lbMapFilter || 'dark_forest';
+        const filtered = board.filter(e => (e.map || 'dark_forest') === mf);
+        this._renderBoard(container, filtered, isGlobal, mf);
     },
 
-    _renderBoard(container, board, isGlobal) {
+    _renderBoard(container, board, isGlobal, mapFilter) {
         if (!board.length) {
             container.innerHTML = `<div class="lb-empty">🌙 Sé el primero en aparecer aquí<br>
                 <span style="font-size:9px;color:#2e1840;margin-top:6px;display:block">
@@ -320,8 +325,10 @@ const Auth = {
         const medals  = ['🥇','🥈','🥉'];
         const myRank  = board.findIndex(e => e.name === myName) + 1;
 
+        const mapLabels = {'dark_forest':'🌲 Bosque Oscuro','cemetery':'⚰️ Cementerio'};
+        const mapLabel = mapLabels[mapFilter] || '🌲 Bosque Oscuro';
         const header = `<div class="lb-total">
-            ${board.length} guerrero${board.length!==1?'s':''} ·
+            ${mapLabel} · ${board.length} guerrero${board.length!==1?'s':''} ·
             Tu posición: <strong>${myRank ? '#'+myRank : '—'}</strong>
             <span class="lb-${isGlobal?'global':'local'}-tag">${isGlobal?'🌐 global':'📱 local'}</span>
         </div>`;

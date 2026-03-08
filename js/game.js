@@ -10,6 +10,7 @@ const Game = {
     currentBoss:null,
     state:'LOADING',          // LOADING → LANDING → START → PLAY → PAUSE → LEVELUP → GAMEOVER
     gameMode: 'normal',        // 'normal' | 'frenetic'
+    currentMap: 'dark_forest',     // 'dark_forest' | 'cemetery'
     kills:0, time:0, combo:0, comboTimer:0,
     shake:0, difficulty:1, lastMinute:0,
     powerUpTimer:0, spawnTimer:0,
@@ -99,6 +100,15 @@ const Game = {
             };
         });
 
+        // Map buttons
+        document.querySelectorAll('.lobby-map-btn:not(.lobby-locked)').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.lobby-map-btn').forEach(b => b.classList.remove('lobby-map-active'));
+                btn.classList.add('lobby-map-active');
+                this.currentMap = btn.dataset.map;
+            };
+        });
+
         document.getElementById('btn-lobby-play').onclick = () => {
             lobby.style.display = 'none';
             this.showCharSelect();
@@ -109,10 +119,18 @@ const Game = {
             if (typeof Auth !== 'undefined') Auth.renderLeaderboard('lb-list');
             document.getElementById('lb-modal').style.display = 'flex';
         };
+        const lobbyOpenLB = () => {
+            const map = this.currentMap || 'dark_forest';
+            if (typeof Auth !== 'undefined') Auth.renderLeaderboard('lb-list', map);
+            document.getElementById('lb-modal').style.display = 'flex';
+            document.querySelectorAll('.lb-map-tab').forEach(t => {
+                t.classList.toggle('lb-map-tab-active', t.dataset.map === map);
+            });
+        };
         const lobbyLb = document.getElementById('btn-show-lb');
         if (lobbyLb) {
-            lobbyLb.onclick = openLB;
-            lobbyLb.ontouchend = e => { e.preventDefault(); openLB(); };
+            lobbyLb.onclick = lobbyOpenLB;
+            lobbyLb.ontouchend = e => { e.preventDefault(); lobbyOpenLB(); };
         }
     },
 
@@ -176,16 +194,25 @@ const Game = {
         startBtn.addEventListener('touchend', e => { e.preventDefault(); this.start(); });
 
         // Leaderboard trigger buttons (start screen + game over)
-        const openLB = () => {
-            if (typeof Auth !== 'undefined') Auth.renderLeaderboard('lb-list');
+        const openLB = (mapOverride) => {
+            const map = mapOverride || this.currentMap || 'dark_forest';
+            if (typeof Auth !== 'undefined') Auth.renderLeaderboard('lb-list', map);
             document.getElementById('lb-modal').style.display = 'flex';
+            // Set active tab
+            document.querySelectorAll('.lb-map-tab').forEach(t => {
+                t.classList.toggle('lb-map-tab-active', t.dataset.map === map);
+            });
         };
         const closeLB = () => {
             document.getElementById('lb-modal').style.display = 'none';
         };
+        // Map tab clicks
+        document.querySelectorAll('.lb-map-tab').forEach(tab => {
+            tab.onclick = () => openLB(tab.dataset.map);
+        });
         ['btn-show-lb','go-show-lb','pause-show-lb'].forEach(id => {
             const btn = document.getElementById(id);
-            if (btn) { btn.onclick = openLB; btn.ontouchend = e => { e.preventDefault(); openLB(); }; }
+            if (btn) { btn.onclick = () => openLB(); btn.ontouchend = e => { e.preventDefault(); openLB(); }; }
         });
         ['lb-close-btn','lb-close-btn2'].forEach(id => {
             const btn = document.getElementById(id);
@@ -1881,10 +1908,13 @@ const Game = {
         const startIX = -Math.ceil(Game.lw  / (2 * tileSize)) - 1;
         const startIY = -Math.ceil(Game.lh / (2 * tileSize)) - 1;
 
-        // ── MAP FLOOR — image texture fixed in world space, no seams ──
-        if (!this._mapImg) {
+        // ── MAP FLOOR — switches by currentMap ────────────────────
+        const _mapSrc = this.currentMap === 'cemetery' ? 'assets/map_cemetery.jpg' : 'assets/map_floor.jpg';
+        if (!this._mapImg || this._mapImg._src !== _mapSrc) {
             this._mapImg = new Image();
-            this._mapImg.src = 'assets/map_floor.jpg';
+            this._mapImg.src = _mapSrc;
+            this._mapImg._src = _mapSrc;
+            this._mapCache = null; // invalidate cache on map switch
         }
 
         if (this._mapImg.complete && this._mapImg.naturalWidth) {
@@ -1896,15 +1926,13 @@ const Game = {
             const startX = Math.floor((-ox) / iw) * iw + ox;
             const startY = Math.floor((-oy) / ih) * ih + oy;
 
-            // ── Offscreen cache: only rebuild when scroll exceeds 1 tile ──
             if (!this._mapCache || !this._mapCacheCtx) {
                 this._mapCache    = document.createElement('canvas');
                 this._mapCache.width  = Game.lw  + iw * 2;
                 this._mapCache.height = Game.lh + ih * 2;
                 this._mapCacheCtx = this._mapCache.getContext('2d');
-                this._mapCacheOriginX = null; // force first draw
+                this._mapCacheOriginX = null;
             }
-            // Rebuild cache if origin shifted by >= 1 tile
             if (this._mapCacheOriginX === null ||
                 Math.abs(startX - this._mapCacheOriginX) >= iw ||
                 Math.abs(startY - this._mapCacheOriginY) >= ih) {
@@ -1918,16 +1946,24 @@ const Game = {
                     }
                 }
             }
-            // Single blit per frame — very cheap
             ctx.drawImage(this._mapCache, startX - iw, startY - ih);
+
+            // Cemetery: purple-grey tint overlay
+            if (this.currentMap === 'cemetery') {
+                ctx.globalAlpha = 0.22;
+                ctx.fillStyle = '#1a0828';
+                ctx.fillRect(0, 0, Game.lw, Game.lh);
+                ctx.globalAlpha = 1;
+            }
         } else {
-            ctx.fillStyle = '#0c1408';
+            ctx.fillStyle = this.currentMap === 'cemetery' ? '#0a0810' : '#0c1408';
             ctx.fillRect(0, 0, Game.lw, Game.lh);
         }
 
-        // ── GLOWING MUSHROOMS (replace torches) ────────────────────
-        if (!this._torches) {
+        // ── GLOWING MUSHROOMS / TOMBSTONES ────────────────────────
+        if (!this._torches || this._torches._map !== this.currentMap) {
             this._torches = [];
+            this._torches._map = this.currentMap;
             for (let tx2 = -1200; tx2 <= 1200; tx2 += 280) {
                 for (let ty2 = -1200; ty2 <= 1200; ty2 += 280) {
                     const seed = Math.abs((tx2 * 31 + ty2 * 17) % 100);
@@ -1936,11 +1972,10 @@ const Game = {
                         wy: ty2 + ((seed * 3) % 80) - 40,
                         phase: Math.random() * Math.PI * 2,
                         flicker: 0.5 + Math.random() * 0.8,
-                        col: [
-                            [0,255,120],   // green
-                            [80,200,255],  // cyan
-                            [180,255,80],  // yellow-green
-                        ][Math.floor(Math.random()*3)],
+                        col: this.currentMap === 'cemetery'
+                            ? [[160,100,200],[120,80,180],[180,120,220]][Math.floor(Math.random()*3)]
+                            : [[0,255,120],[80,200,255],[180,255,80]][Math.floor(Math.random()*3)],
+                        isTombstone: this.currentMap === 'cemetery',
                     });
                 }
             }
@@ -1959,25 +1994,42 @@ const Game = {
             const [r,g,b] = t.col;
             const pulse = 0.7 + Math.sin(wt * t.flicker * 3 + t.phase) * 0.3;
 
-            // floor glow — simple alpha fill (no gradient = much cheaper)
-            ctx.globalAlpha = 0.09 * pulse;
-            ctx.fillStyle = `rgb(${r},${g},${b})`;
-            ctx.beginPath(); ctx.arc(sx, sy, 55 * pulse, 0, Math.PI * 2); ctx.fill();
-            ctx.globalAlpha = 1;
+            // floor glow — only for mushrooms, not tombstones
+            if (!t.isTombstone) {
+                ctx.globalAlpha = 0.09 * pulse;
+                ctx.fillStyle = `rgb(${r},${g},${b})`;
+                ctx.beginPath(); ctx.arc(sx, sy, 55 * pulse, 0, Math.PI * 2); ctx.fill();
+                ctx.globalAlpha = 1;
+            }
 
-            // mushroom stem
-            ctx.fillStyle = '#1a2a14';
-            ctx.fillRect(sx - 2, sy - 4, 4, 8);
-            // mushroom cap
-            ctx.fillStyle = `rgba(${r},${g},${b},${0.85 * pulse})`;
-            ctx.beginPath(); ctx.ellipse(sx, sy - 5, 7 * pulse, 5 * pulse, 0, Math.PI, 0); ctx.fill();
-            // cap shine
-            ctx.fillStyle = `rgba(255,255,255,${0.3 * pulse})`;
-            ctx.beginPath(); ctx.ellipse(sx - 1, sy - 6, 3, 2, -0.3, Math.PI, 0); ctx.fill();
-            // spots
-            ctx.fillStyle = `rgba(255,255,255,${0.5 * pulse})`;
-            ctx.beginPath(); ctx.arc(sx - 2, sy - 5, 1, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(sx + 2, sy - 6, 0.8, 0, Math.PI*2); ctx.fill();
+            if (t.isTombstone) {
+                // ── Tombstone ──────────────────────────────────
+                const tw = 14, th = 20;
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.fillRect(sx - tw/2 + 2, sy - th + 2, tw, th);
+                ctx.fillStyle = `rgba(${r},${g},${b},${0.65 * pulse})`;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(sx - tw/2, sy - th * 0.75, tw, th * 0.75, 3);
+                else ctx.rect(sx - tw/2, sy - th * 0.75, tw, th * 0.75);
+                ctx.fill();
+                ctx.beginPath(); ctx.arc(sx, sy - th * 0.75, tw/2, Math.PI, 0); ctx.fill();
+                // Cross engraving
+                ctx.strokeStyle = `rgba(255,255,255,${0.25 * pulse})`;
+                ctx.lineWidth = 1.2;
+                ctx.beginPath(); ctx.moveTo(sx, sy - th * 0.7); ctx.lineTo(sx, sy - th * 0.3); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(sx - 3, sy - th * 0.55); ctx.lineTo(sx + 3, sy - th * 0.55); ctx.stroke();
+            } else {
+                // ── Mushroom ────────────────────────────────────
+                ctx.fillStyle = '#1a2a14';
+                ctx.fillRect(sx - 2, sy - 4, 4, 8);
+                ctx.fillStyle = `rgba(${r},${g},${b},${0.85 * pulse})`;
+                ctx.beginPath(); ctx.ellipse(sx, sy - 5, 7 * pulse, 5 * pulse, 0, Math.PI, 0); ctx.fill();
+                ctx.fillStyle = `rgba(255,255,255,${0.3 * pulse})`;
+                ctx.beginPath(); ctx.ellipse(sx - 1, sy - 6, 3, 2, -0.3, Math.PI, 0); ctx.fill();
+                ctx.fillStyle = `rgba(255,255,255,${0.5 * pulse})`;
+                ctx.beginPath(); ctx.arc(sx - 2, sy - 5, 1, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(sx + 2, sy - 6, 0.8, 0, Math.PI*2); ctx.fill();
+            }
         });
 
         // Floating spores: skip on mobile
@@ -2016,6 +2068,23 @@ const Game = {
                 ctx.globalAlpha = a;
                 ctx.fillStyle   = w.col + '1)';
                 ctx.beginPath(); ctx.arc(wx2, wy2, w.r, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // Cemetery: creeping ground fog
+        if (this.currentMap === 'cemetery' && !CONFIG.IS_MOBILE) {
+            if (!this._cemFog) this._cemFog = Array.from({length:8}, (_, i) => ({
+                x: (i * 400) - 1200, y: (i % 3) * 300 - 400,
+                r: 120 + i * 30, phase: i * 0.8
+            }));
+            this._cemFog.forEach(f => {
+                const fx = (f.x - off.x) % 1400 + Game.lw/2;
+                const fy = (f.y - off.y) % 900  + Game.lh/2;
+                const a  = 0.06 + Math.sin(wt * 0.2 + f.phase) * 0.03;
+                ctx.globalAlpha = a;
+                ctx.fillStyle   = 'rgba(80,40,120,1)';
+                ctx.beginPath(); ctx.arc(fx, fy, f.r, 0, Math.PI*2); ctx.fill();
             });
             ctx.globalAlpha = 1;
         }
@@ -2615,6 +2684,7 @@ const Game = {
                     kills:    this.kills,
                     level:    this.player.level,
                     mode:     this.gameMode || 'normal',
+                    map:      this.currentMap || 'dark_forest',
                 });
                 if (rank) this._showRankAnnouncement(rank);
             } catch(e) {

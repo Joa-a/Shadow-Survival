@@ -58,7 +58,10 @@
             <span class="lb-title">🏆 &nbsp; RANKING</span>
             <button class="lb-close" id="lb-close-btn">✕</button>
         </div>
-        <div class="lb-subtitle">TIEMPO DE SUPERVIVENCIA</div>
+        <div class="lb-map-tabs">
+            <button class="lb-map-tab lb-map-tab-active" data-map="dark_forest">🌲 Bosque</button>
+            <button class="lb-map-tab" data-map="cemetery">⚰️ Cementerio</button>
+        </div>
         <div id="lb-list" class="lb-list"></div>
         <button class="btn-secondary" id="lb-close-btn2" style="margin-top:16px;">CERRAR</button>
     </div>
@@ -156,10 +159,10 @@
                 <span class="lob-mode-name">BOSQUE OSCURO</span>
                 <span class="lob-mode-desc">Disponible</span>
             </button>
-            <button class="lobby-map-btn lobby-locked" data-map="coming_soon" disabled>
-                <span class="lob-mode-icon">🔒</span>
-                <span class="lob-mode-name">PRÓXIMAMENTE</span>
-                <span class="lob-mode-desc">En desarrollo</span>
+            <button class="lobby-map-btn" data-map="cemetery">
+                <span class="lob-mode-icon">⚰️</span>
+                <span class="lob-mode-name">CEMENTERIO</span>
+                <span class="lob-mode-desc">Niebla y tumbas</span>
             </button>
         </div>
     </div>
