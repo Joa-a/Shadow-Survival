@@ -1231,6 +1231,8 @@ const Game = {
                 const e = new Enemy(bs.x, bs.y, data, 1);
                 this.enemies.push(e);
                 this.currentBoss = e;
+                // Clear all regular enemies when boss appears
+                this.enemies = this.enemies.filter(en => en === e || en.isBoss);
                 this.shake = 28;
                 // Big spawn particle burst
                 for (let i = 0; i < 24; i++) {
