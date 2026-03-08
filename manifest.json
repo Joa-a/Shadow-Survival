@@ -1,0 +1,26 @@
+{
+  "name": "Shadow Survivor",
+  "short_name": "Shadow Survivor",
+  "description": "Sobrevive la noche eterna. Mata enemigos, sube de nivel y evoluciona tu guerrero.",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#06030e",
+  "theme_color": "#6600cc",
+  "lang": "es",
+  "categories": ["games"],
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
