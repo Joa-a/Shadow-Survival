@@ -5,9 +5,8 @@ class Enemy extends Entity {
     constructor(x, y, data, diffMult) {
         super(x, y, data.r, data.hp * diffMult, data.color);
         this.type        = data.type;
-        // Logarithmic speed scale — no hard cap, but flattens naturally
-        // diffMult=1→1.0×  3→1.66×  9→2.33×  keeps game hard without hitscanning
-        const speedScale = 1 + Math.log(Math.max(diffMult, 1)) * 0.6;
+        // Speed scale: very slight increase, capped at 1.2x max
+        const speedScale = Math.min(1 + Math.log(Math.max(diffMult, 1)) * 0.15, 1.2);
         this.speed       = data.speed * (0.88 + Math.random() * 0.24) * speedScale;
         this.baseSpeed   = this.speed;
         // dmg scales with difficulty but capped logarithmically to prevent insta-kills

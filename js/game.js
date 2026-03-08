@@ -587,7 +587,7 @@ const Game = {
                     poisonDmg,
                     color: '#44ff44',
                 });
-            }, i * 75);
+            }, i * 30);
         }
 
         this.shake = 10;
@@ -963,17 +963,18 @@ const Game = {
         }
 
         const t    = this.time;
-        let pool   = [ENEMY_TYPES[0], ENEMY_TYPES[0]];
-        if (t > 30)  pool.push(ENEMY_TYPES[1], ENEMY_TYPES[1], ENEMY_TYPES[0]);
-        if (t > 60)  pool.push(ENEMY_TYPES[1], ENEMY_TYPES[2]);
-        if (t > 120) pool.push(ENEMY_TYPES[2], ENEMY_TYPES[2], ENEMY_TYPES[3]);
-        if (t > 180) pool.push(ENEMY_TYPES[3], ENEMY_TYPES[4]);
-        if (t > 240) pool.push(ENEMY_TYPES[4], ENEMY_TYPES[5]);
-        if (t > 300) pool.push(ENEMY_TYPES[5], ENEMY_TYPES[5]);
+        const ET = this.currentMap === 'cemetery' ? ENEMY_TYPES_CEMETERY : ENEMY_TYPES_FOREST;
+        let pool   = [ET[0], ET[0]];
+        if (t > 30)  pool.push(ET[1], ET[1], ET[0]);
+        if (t > 60)  pool.push(ET[1], ET[2]);
+        if (t > 120) pool.push(ET[2], ET[2], ET[3]);
+        if (t > 180) pool.push(ET[3], ET[4]);
+        if (t > 240) pool.push(ET[4], ET[5]);
+        if (t > 300) pool.push(ET[5], ET[5]);
         // New enemy types: berserk, necromancer, shadow — aparecen solo después de 5 minutos
-        if (t > 300) pool.push(ENEMY_TYPES[6]);
-        if (t > 360) pool.push(ENEMY_TYPES[7], ENEMY_TYPES[6]);
-        if (t > 420) pool.push(ENEMY_TYPES[8], ENEMY_TYPES[8]);
+        if (t > 300) pool.push(ET[6]);
+        if (t > 360) pool.push(ET[7], ET[6]);
+        if (t > 420) pool.push(ET[8], ET[8]);
 
         // Ranged enemies removed — only bosses can shoot projectiles
         pool = pool.filter(e => e.type !== 'ranged');
@@ -2032,8 +2033,8 @@ const Game = {
             }
         });
 
-        // Floating spores: skip on mobile
-        if (!CONFIG.IS_MOBILE) this._torchParticles.forEach(p => {
+        // Floating spores: skip on mobile and cemetery
+        if (!CONFIG.IS_MOBILE && this.currentMap !== 'cemetery') this._torchParticles.forEach(p => {
             p.life += p.speed;
             if (p.life > 1) { p.life = 0; p.torchIdx = Math.floor(Math.random() * this._torches.length); p.ox = (Math.random()-0.5)*8; }
             const t2  = this._torches[p.torchIdx];
@@ -2072,22 +2073,7 @@ const Game = {
             ctx.globalAlpha = 1;
         }
 
-        // Cemetery: creeping ground fog
-        if (this.currentMap === 'cemetery' && !CONFIG.IS_MOBILE) {
-            if (!this._cemFog) this._cemFog = Array.from({length:8}, (_, i) => ({
-                x: (i * 400) - 1200, y: (i % 3) * 300 - 400,
-                r: 120 + i * 30, phase: i * 0.8
-            }));
-            this._cemFog.forEach(f => {
-                const fx = (f.x - off.x) % 1400 + Game.lw/2;
-                const fy = (f.y - off.y) % 900  + Game.lh/2;
-                const a  = 0.06 + Math.sin(wt * 0.2 + f.phase) * 0.03;
-                ctx.globalAlpha = a;
-                ctx.fillStyle   = 'rgba(80,40,120,1)';
-                ctx.beginPath(); ctx.arc(fx, fy, f.r, 0, Math.PI*2); ctx.fill();
-            });
-            ctx.globalAlpha = 1;
-        }
+        // Cemetery fog removed
 
         // Decorations (roots/stones overgrown)
         this.decorations.forEach(d => {

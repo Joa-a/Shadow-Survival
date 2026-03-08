@@ -218,14 +218,31 @@ const EVOLUTION_TABLE = [
 ];
 
 // ═══ ENEMY TEMPLATES ═══
-const ENEMY_TYPES = [
-    { type:'swarm',    hp:22,  speed:125, r:9,  color:'#c0d8ff', xp:3,  dmg:5  },  // pale blue wisp
-    { type:'chase',    hp:32,  speed:105, r:11, color:'#d0aaff', xp:5,  dmg:7  },  // pale violet
-    { type:'ranged',   hp:40,  speed:80,  r:12, color:'#aaffee', xp:8,  dmg:9  },  // pale teal
-    { type:'charger',  hp:55,  speed:95,  r:14, color:'#ffddaa', xp:12, dmg:13 },  // pale amber
-    { type:'exploder', hp:65,  speed:55,  r:18, color:'#aaffaa', xp:16, dmg:9  },  // pale green
-    { type:'phantom',  hp:45,  speed:90,  r:13, color:'#ffffff', xp:14, dmg:11 },  // pure white spirit
-    { type:'berserk',    hp:55,  speed:130, r:13, color:'#ff8822', xp:16, dmg:13 },  // orange rager
-    { type:'necromancer',hp:68,  speed:55,  r:16, color:'#33ffcc', xp:22, dmg:9  },  // teal summoner
-    { type:'shadow',     hp:38,  speed:118, r:11, color:'#aa22ff', xp:14, dmg:10 },  // purple phantom
+// ── DARK FOREST enemies (wisps, spirits, phantoms)
+const ENEMY_TYPES_FOREST = [
+    { type:'swarm',      hp:22,  speed:120, r:9,  color:'#c0d8ff', xp:3,  dmg:5  },  // pale blue wisp
+    { type:'chase',      hp:32,  speed:100, r:11, color:'#d0aaff', xp:5,  dmg:7  },  // pale violet
+    { type:'ranged',     hp:40,  speed:78,  r:12, color:'#aaffee', xp:8,  dmg:9  },  // pale teal
+    { type:'charger',    hp:55,  speed:90,  r:14, color:'#ffddaa', xp:12, dmg:13 },  // pale amber
+    { type:'exploder',   hp:65,  speed:52,  r:18, color:'#aaffaa', xp:16, dmg:9  },  // pale green
+    { type:'phantom',    hp:45,  speed:85,  r:13, color:'#ffffff', xp:14, dmg:11 },  // pure white spirit
+    { type:'berserk',    hp:55,  speed:125, r:13, color:'#ff8822', xp:16, dmg:13 },  // orange rager
+    { type:'necromancer',hp:68,  speed:52,  r:16, color:'#33ffcc', xp:22, dmg:9  },  // teal summoner
+    { type:'shadow',     hp:38,  speed:112, r:11, color:'#aa22ff', xp:14, dmg:10 },  // purple phantom
 ];
+
+// ── CEMETERY enemies (undead, skeletons, wraiths, ghouls)
+const ENEMY_TYPES_CEMETERY = [
+    { type:'swarm',      hp:18,  speed:95,  r:9,  color:'#c8c8b0', xp:3,  dmg:5  },  // bone chip — slow
+    { type:'chase',      hp:35,  speed:85,  r:12, color:'#88ff88', xp:5,  dmg:8  },  // ghoul — greenish
+    { type:'ranged',     hp:38,  speed:70,  r:11, color:'#aaeedd', xp:8,  dmg:10 },  // wraith archer
+    { type:'charger',    hp:60,  speed:88,  r:15, color:'#eecc88', xp:12, dmg:14 },  // armored skeleton
+    { type:'exploder',   hp:50,  speed:48,  r:20, color:'#88ee88', xp:16, dmg:12 },  // bloated corpse
+    { type:'phantom',    hp:42,  speed:80,  r:13, color:'#ddddff', xp:14, dmg:11 },  // banshee
+    { type:'berserk',    hp:58,  speed:105, r:13, color:'#ff6644', xp:16, dmg:14 },  // revenant
+    { type:'necromancer',hp:72,  speed:48,  r:16, color:'#88ffaa', xp:22, dmg:9  },  // lich
+    { type:'shadow',     hp:40,  speed:100, r:11, color:'#cc88ff', xp:14, dmg:10 },  // death shade
+];
+
+// Default alias (used as fallback)
+const ENEMY_TYPES = ENEMY_TYPES_FOREST;
