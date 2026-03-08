@@ -2,6 +2,11 @@
 <html lang="es">
 <head>
     <link rel="manifest" href="manifest.json">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
+      }
+    </script>
     <meta name="theme-color" content="#6600cc">
     <link rel="apple-touch-icon" href="assets/icon-192.png">
     <meta charset="UTF-8">
