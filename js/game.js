@@ -103,6 +103,17 @@ const Game = {
             lobby.style.display = 'none';
             this.showCharSelect();
         };
+
+        // Wire ranking button in lobby (initControls runs later)
+        const openLB = () => {
+            if (typeof Auth !== 'undefined') Auth.renderLeaderboard('lb-list');
+            document.getElementById('lb-modal').style.display = 'flex';
+        };
+        const lobbyLb = document.getElementById('btn-show-lb');
+        if (lobbyLb) {
+            lobbyLb.onclick = openLB;
+            lobbyLb.ontouchend = e => { e.preventDefault(); openLB(); };
+        }
     },
 
     showCharSelect() {
@@ -2618,8 +2629,12 @@ const Game = {
     loop(now) {
         const dt = Math.min((now - (this.lastTime_loop||now)) / 1000, 0.08);
         this.lastTime_loop = now;
+        // Don't burn CPU on lobby/loading screens
+        if (this.state === 'LOADING' || this.state === 'LANDING') {
+            requestAnimationFrame(t => this.loop(t));
+            return;
+        }
         if (this.hitstopFrames > 0) {
-            // Hit-stop: freeze update but keep drawing — sells the weight of crits
             this.hitstopFrames--;
             this.draw();
         } else if (this.state !== 'PAUSE') {

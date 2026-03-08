@@ -95,10 +95,18 @@
     justify-content: flex-start;
     align-items: center;
     padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
     padding-left: 16px;
     padding-right: 16px;
     gap: 10px;
+}
+/* Combat button always sticky at bottom on mobile */
+#btn-start-game {
+    position: sticky;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    z-index: 10;
+    width: 92%;
+    max-width: 340px;
 }
 #start-screen::before {
     content:''; position:absolute; inset:0;
