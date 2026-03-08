@@ -197,10 +197,11 @@ class Player extends Entity {
             ctx.shadowBlur = 0;
         }
 
-        // Body — bright sorcerer core
+        // Body — skin color from shop or default
+        const _sc = this._skinColor || '#ddeeff';
         ctx.globalAlpha = 1;
-        ctx.fillStyle   = '#ddeeff';
-        ctx.shadowColor = '#8899ff'; ctx.shadowBlur = CONFIG.IS_MOBILE ? 10 : 22;
+        ctx.fillStyle   = _sc;
+        ctx.shadowColor = _sc; ctx.shadowBlur = CONFIG.IS_MOBILE ? 10 : 22;
         ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI * 2); ctx.fill();
         // Inner highlight
         ctx.shadowBlur = 0;

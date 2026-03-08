@@ -76,6 +76,7 @@
 
 <!-- HUD -->
 <div id="hud">
+    <div id="souls-hud">👻 0</div>
     <div class="xp-container"><div id="xp-fill"></div></div>
     <div id="xp-label">XP</div>
     <!-- Death Bar — Magic Survival intensity meter -->
@@ -170,6 +171,7 @@
     <div class="lobby-footer-btns">
         <button class="btn-main" id="btn-lobby-play">⚔ &nbsp; ELEGIR GUERRERO</button>
         <div class="lobby-sub-btns">
+            <button class="btn-secondary" id="btn-open-shop">👻 ALTAR DE ALMAS</button>
             <button class="btn-secondary lb-trigger-btn" id="btn-show-lb">🏆 RANKING</button>
             <button class="btn-secondary" onclick="Auth.logout()" style="font-size:9px;color:#443344;">↩ CAMBIAR USUARIO</button>
         </div>
@@ -227,6 +229,7 @@
 <script src="js/audio.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/data.js"></script>
+    <script src="js/souls.js"></script>
 <script src="js/entity.js"></script>
 <script src="js/player.js"></script>
 <script src="js/enemy.js"></script>
@@ -234,5 +237,16 @@
 <script src="js/spatial.js"></script>
 <script src="js/intro.js"></script>
 <script src="js/game.js"></script>
+
+<!-- SOULS SHOP -->
+<div id="souls-shop-modal" class="overlay" style="display:none;z-index:3000;">
+    <div class="souls-shop-panel">
+        <div class="souls-shop-header">
+            <span class="souls-shop-title">👻 ALTAR DE ALMAS</span>
+            <button class="lb-close" onclick="document.getElementById('souls-shop-modal').style.display='none'">✕</button>
+        </div>
+        <div id="souls-shop-content" class="souls-shop-content"></div>
+    </div>
+</div>
 </body>
 </html>

@@ -132,6 +132,21 @@ const Game = {
             lobbyLb.onclick = lobbyOpenLB;
             lobbyLb.ontouchend = e => { e.preventDefault(); lobbyOpenLB(); };
         }
+
+        // Shop button
+        const shopBtn = document.getElementById('btn-open-shop');
+        if (shopBtn) {
+            const openShop = () => {
+                Souls.renderShop();
+                document.getElementById('souls-shop-modal').style.display = 'flex';
+            };
+            shopBtn.onclick = openShop;
+            shopBtn.ontouchend = e => { e.preventDefault(); openShop(); };
+        }
+
+        // Update souls counter in lobby
+        const soulsEl = document.getElementById('souls-hud');
+        if (soulsEl) soulsEl.textContent = '👻 ' + Souls.total;
     },
 
     showCharSelect() {
@@ -637,6 +652,8 @@ const Game = {
     start() {
         AudioEngine.init(); AudioEngine.resume();
         this.player           = new Player(this.selectedChar);
+        Souls.applyPassives(this.player);
+        this.player._skinColor = Souls.getSkinColor();
         this.enemies          = []; this.projectiles       = []; this.gems             = [];
         this.particles        = []; this.texts             = []; this.enemyProjectiles = [];
         this.powerUps         = []; this.lightningBolts    = []; this.currentBoss      = null;
@@ -1127,6 +1144,8 @@ const Game = {
 
     // ─────────────────────────── HUD ─────────────────────────────
     updateHUD() {
+        const soulsEl = document.getElementById('souls-hud');
+        if (soulsEl) soulsEl.textContent = '👻 ' + Souls.total;
         const dt = this._dt || 0.016;   // fallback 60fps
         const p = this.player;
         document.getElementById('xp-fill').style.width   = (p.xp / p.nextXp * 100) + '%';
@@ -1176,6 +1195,7 @@ const Game = {
         } else if (this.currentBoss && this.currentBoss.dead) {
             document.getElementById('boss-hud').style.display = 'none';
             this.bossKills++;
+            Souls.add(15); // boss soul reward
             this.currentBoss = null;
             this.bossArena = null; this._fogDmgFlash = 0;  // remove arena wall
             // Boss reward: full level up + full heal
@@ -1593,9 +1613,13 @@ const Game = {
                 }
                 if (e === this.currentBoss) this.shake = 20;
                 this.kills++; this.combo++; this.comboTimer = 2.8;
+                // Soul drop
+                const soulAmt = e.elite ? 3 : 1;
+                Souls.add(soulAmt);
                 const xpMult = (this.goldTimer > 0 ? 2 : 1) * (this.gameMode === 'frenetic' ? 1.5 : 1);
                 // Elites drop 5x XP (big gem), bosses handled below
-                const xpAmount = e.xpValue * (e.elite ? 5 : 1) * xpMult;
+                const xpBonus  = this.player._xpBonus || 0;
+                const xpAmount = e.xpValue * (e.elite ? 5 : 1) * xpMult + xpBonus;
                 const gemTier  = e.elite ? 2 : 0;   // elite gems are gold tier
                 this.gems.push({ x:e.x, y:e.y, xp: xpAmount, tier: gemTier });
                 this.spawnParticle(e.x, e.y, e.color, e.isBoss?20:10);
