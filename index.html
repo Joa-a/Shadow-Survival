@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <link rel="manifest" href="manifest.json">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4137256971331101" crossorigin="anonymous"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
@@ -265,5 +266,15 @@
     </div>
 </div>
 <script>window.addEventListener('beforeunload', () => Souls.flush());</script>
+    <!-- AdSense interstitial container -->
+    <div id="ad-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#6600cc">ANUNCIO</div>
+        <ins class="adsbygoogle"
+             style="display:block;width:320px;height:250px"
+             data-ad-client="ca-pub-4137256971331101"
+             data-ad-slot="auto"
+             data-ad-format="rectangle"></ins>
+        <div id="ad-timer" style="font-family:'Orbitron',sans-serif;font-size:10px;color:#443344;letter-spacing:2px">Reviviendo en <span id="ad-countdown">5</span>s...</div>
+    </div>
 </body>
 </html>

@@ -749,28 +749,51 @@ const Game = {
         if (!this._canRevive) return;
         this._canRevive = false;
 
-        // Simulate ad — in production replace this with real ad SDK call
         const revBtn = document.getElementById('btn-revive');
         if (revBtn) { revBtn.disabled = true; revBtn.textContent = '⏳ Cargando anuncio...'; }
 
-        // Simulate 3s ad watch then revive
-        setTimeout(() => {
-            document.getElementById('gameover-screen').style.display = 'none';
-            this.state = 'PLAY';
-            // Restore player with 50% HP
-            this.player.hp = Math.ceil(this.player.maxHp * 0.5);
-            // Clear enemies around player to give breathing room
-            this.enemies = this.enemies.filter(e => {
-                const dx = e.x - this.player.x, dy = e.y - this.player.y;
-                return Math.sqrt(dx*dx+dy*dy) > 300;
-            });
-            // Show revival particle burst
-            for (let i = 0; i < 16; i++) {
-                const a = (Math.PI*2/16)*i;
-                this.spawnParticle(this.player.x + Math.cos(a)*40, this.player.y + Math.sin(a)*40, '#88ffcc', 8);
-            }
-            this.shake = 8;
-        }, 3000); // replace 3000 with real ad callback
+        // Show AdSense overlay
+        const overlay = document.getElementById('ad-overlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+            // Push AdSense ad
+            try {
+                (adsbygoogle = window.adsbygoogle || []).push({});
+            } catch(e) {}
+
+            // Countdown timer
+            let secs = 5;
+            const countEl = document.getElementById('ad-countdown');
+            const tick = setInterval(() => {
+                secs--;
+                if (countEl) countEl.textContent = secs;
+                if (secs <= 0) {
+                    clearInterval(tick);
+                    overlay.style.display = 'none';
+                    this._applyRevive();
+                }
+            }, 1000);
+        } else {
+            // Fallback if no overlay
+            setTimeout(() => this._applyRevive(), 3000);
+        }
+    },
+
+    _applyRevive() {
+        document.getElementById('gameover-screen').style.display = 'none';
+        this.state = 'PLAY';
+        this.player.hp = Math.ceil(this.player.maxHp * 0.5);
+        // Clear nearby enemies
+        this.enemies = this.enemies.filter(e => {
+            const dx = e.x - this.player.x, dy = e.y - this.player.y;
+            return Math.sqrt(dx*dx+dy*dy) > 300;
+        });
+        // Revival burst
+        for (let i = 0; i < 16; i++) {
+            const a = (Math.PI*2/16)*i;
+            this.spawnParticle(this.player.x + Math.cos(a)*40, this.player.y + Math.sin(a)*40, '#88ffcc', 8);
+        }
+        this.shake = 8;
     },
 
     togglePause() {
