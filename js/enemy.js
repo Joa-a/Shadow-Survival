@@ -294,16 +294,16 @@ class Enemy extends Entity {
             this.x += Math.cos(ang) * this.speed * moveDir * dt;
             this.y += Math.sin(ang) * this.speed * moveDir * dt;
         }
-        const interval = 2.4;
+        const interval = 1.6;  // was 2.4 — attacks much faster
         if (this.patternTimer >= interval) {
             this.patternTimer = 0;
             this.patternPhase = (this.patternPhase + 1) % 5;
             const ph = this.patternPhase;
             if (ph === 0) {
-                // ICE SHARD FAN — 7 fast shards aimed at player
-                for (let s = -3; s <= 3; s++) {
-                    const a = ang + s * 0.18;
-                    Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(a)*6.5, vy:Math.sin(a)*6.5, r:7, dmg:11, life:160, color:'#44eeff' });
+                // ICE SHARD FAN — 9 fast shards aimed at player (was 7, wider spread)
+                for (let s = -4; s <= 4; s++) {
+                    const a = ang + s * 0.2;
+                    Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(a)*9, vy:Math.sin(a)*9, r:7, dmg:11, life:130, color:'#44eeff' });
                 }
             } else if (ph === 1) {
                 // TELEPORT behind player + burst
@@ -316,12 +316,12 @@ class Enemy extends Entity {
                     Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(a)*4, vy:Math.sin(a)*4, r:8, dmg:10, life:200, color:'#88ffff' });
                 }
             } else if (ph === 2) {
-                // ICE WALL — row of 8 slow orbs across path
-                for (let i = -4; i <= 4; i++) {
+                // ICE WALL — row of 10 faster orbs across path
+                for (let i = -5; i <= 5; i++) {
                     const perp = ang + Math.PI/2;
-                    const ox2  = Math.cos(perp) * i * 55;
-                    const oy2  = Math.sin(perp) * i * 55;
-                    Game.enemyProjectiles.push({ x:this.x+ox2, y:this.y+oy2, vx:Math.cos(ang)*2.5, vy:Math.sin(ang)*2.5, r:10, dmg:9, life:320, color:'#00ccff' });
+                    const ox2  = Math.cos(perp) * i * 50;
+                    const oy2  = Math.sin(perp) * i * 50;
+                    Game.enemyProjectiles.push({ x:this.x+ox2, y:this.y+oy2, vx:Math.cos(ang)*4, vy:Math.sin(ang)*4, r:10, dmg:9, life:260, color:'#00ccff' });
                 }
             } else if (ph === 3) {
                 // SKULL VOLLEY — 3 big aimed shots
@@ -359,17 +359,17 @@ class Enemy extends Entity {
         this.x += Math.cos(ang) * this.speed * dt;
         this.y += Math.sin(ang) * this.speed * dt;
 
-        const interval = 2.2;
+        const interval = 1.5;  // was 2.2 — more aggressive
         if (this.patternTimer >= interval) {
             this.patternTimer = 0;
             this.patternPhase = (this.patternPhase + 1) % 5;
             const ph = this.patternPhase;
             if (ph === 0) {
-                // VOID RAY — dense line of bullets toward player
-                for (let i = 0; i < 8; i++) {
+                // VOID RAY — dense fast line of bullets toward player
+                for (let i = 0; i < 10; i++) {
                     setTimeout(() => {
-                        if (!this.dead) Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(ang)*7, vy:Math.sin(ang)*7, r:8, dmg:11, life:150, color:'#aa44ff' });
-                    }, i * 60);
+                        if (!this.dead) Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(ang)*10, vy:Math.sin(ang)*10, r:8, dmg:11, life:120, color:'#aa44ff' });
+                    }, i * 50);
                 }
             } else if (ph === 1) {
                 // BLACK HOLES — 4 orbs that pull player
@@ -424,7 +424,7 @@ class Enemy extends Entity {
         const glowColor = this.isBoss ? '#ff2244' : (this.elite ? '#ffcc44' : this.color);
         const pulse = 0.7 + Math.sin(t * 2 + this.x * 0.01) * 0.3;
         // Cheap mode: skip expensive effects when many enemies on screen
-        const cheapMode = !this.isBoss && Game.enemies.length > 25;
+        const cheapMode = !this.isBoss && Game.enemies.length > 15;
 
         // ── Shadow enemy: semi-invisible ─────────────────────────
         if (this.type === 'shadow' && this.invisible) {
@@ -621,8 +621,8 @@ class Enemy extends Entity {
             ctx.beginPath(); ctx.arc(sx,sy,this.r+8,0,Math.PI*2); ctx.stroke();
         }
 
-        // HP bar (non-boss)
-        if (!this.isBoss && this.hp < this.maxHp) {
+        // HP bar (non-boss) — skip in cheapMode for non-elites
+        if (!this.isBoss && this.hp < this.maxHp && (!cheapMode || this.elite)) {
             ctx.shadowBlur = 0; ctx.globalAlpha = 1;
             const bw = this.r * 2.2, bh = 4;
             ctx.fillStyle = '#180008';

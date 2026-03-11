@@ -730,6 +730,7 @@ const Game = {
     // ─────────────────────────── START ───────────────────────────
     start() {
         AudioEngine.init(); AudioEngine.resume();
+        AudioEngine.startBgm('normal');  // start dark-ambient BGM
         Souls.initRunRerolls();
         this.player           = new Player(this.selectedChar);
         Souls.applyPassives(this.player);
@@ -819,15 +820,30 @@ const Game = {
         document.getElementById('gameover-screen').style.display = 'none';
         this.state = 'PLAY';
         this.player.hp = Math.ceil(this.player.maxHp * 0.5);
-        // Clear nearby enemies
-        this.enemies = this.enemies.filter(e => {
-            const dx = e.x - this.player.x, dy = e.y - this.player.y;
-            return Math.sqrt(dx*dx+dy*dy) > 300;
-        });
-        // Revival burst
+
+        // If a boss was active, teleport player to safe spot — never delete the boss
+        if (this.currentBoss && !this.currentBoss.dead) {
+            const safeAng = Math.random() * Math.PI * 2;
+            this.player.x = this.currentBoss.x + Math.cos(safeAng) * 420;
+            this.player.y = this.currentBoss.y + Math.sin(safeAng) * 420;
+            if (!this.enemies.includes(this.currentBoss)) this.enemies.push(this.currentBoss);
+            this.enemies = this.enemies.filter(e => {
+                if (e.isBoss) return true;
+                const dx = e.x - this.player.x, dy = e.y - this.player.y;
+                return Math.sqrt(dx * dx + dy * dy) > 280;
+            });
+        } else {
+            this.enemies = this.enemies.filter(e => {
+                const dx = e.x - this.player.x, dy = e.y - this.player.y;
+                return Math.sqrt(dx * dx + dy * dy) > 300;
+            });
+        }
+        this.enemyProjectiles = [];
+        this.player.iframe = 1.2;
+
         for (let i = 0; i < 16; i++) {
-            const a = (Math.PI*2/16)*i;
-            this.spawnParticle(this.player.x + Math.cos(a)*40, this.player.y + Math.sin(a)*40, '#88ffcc', 8);
+            const a = (Math.PI * 2 / 16) * i;
+            this.spawnParticle(this.player.x + Math.cos(a) * 40, this.player.y + Math.sin(a) * 40, '#88ffcc', 8);
         }
         this.shake = 8;
     },
@@ -837,10 +853,12 @@ const Game = {
             this.state = 'PAUSE';
             document.getElementById('pause-btn').textContent = '▶ REANUDAR';
             this._showPauseScreen();
+            AudioEngine.pauseBgm();
         } else if (this.state === 'PAUSE') {
             this.state = 'PLAY';
             document.getElementById('pause-btn').textContent = '⏸ PAUSA';
             document.getElementById('pause-screen').style.display = 'none';
+            AudioEngine.resumeBgm();
         }
     },
 
@@ -906,7 +924,7 @@ const Game = {
     },
 
     spawnParticle(x, y, color, count = 6) {
-        if (this.particles.length > (CONFIG.IS_MOBILE ? CONFIG.PARTICLE_LIMIT_MOBILE : CONFIG.PARTICLE_LIMIT)) return;
+        if (this.particles.length > (CONFIG.IS_MOBILE ? 20 : 45)) return;
         for (let i = 0; i < count; i++) {
             const a = Math.random() * Math.PI * 2, s = 1.5 + Math.random() * 6;
             this.particles.push({
@@ -921,6 +939,8 @@ const Game = {
     },
 
     spawnText(x, y, value, isCrit = false) {
+        // Cap floating texts to avoid lag with high combo
+        if (this.texts.length >= 40) return;
         this.texts.push({
             x, y,
             text:   isCrit ? `✦${value}` : `${value}`,
@@ -1166,25 +1186,69 @@ const Game = {
 
         const container = document.getElementById('upgrade-options');
         container.innerHTML = '';
-        const allKeys   = Object.keys(UPGRADES_DB).filter(k => !UPGRADES_DB[k].evolved);
-        const unowned   = allKeys.filter(k => UPGRADES_DB[k].type==='weapon' && !this.player.weapons.find(w => w.id===k));
-        const owned     = allKeys.filter(k => UPGRADES_DB[k].type==='weapon' &&  this.player.weapons.find(w => w.id===k));
-        const stats     = allKeys.filter(k => UPGRADES_DB[k].type==='stat');
-        const pool      = [...unowned, ...owned, ...stats].sort(() => Math.random() - 0.5).slice(0, 3);
+        const evolvedBases = this.player._evolvedBaseWeapons || new Set();
+        const allKeys      = Object.keys(UPGRADES_DB).filter(k => !UPGRADES_DB[k].evolved);
+        const weaponCount  = this.player.weapons.length;
+        const statCounts   = this.player._statCounts || {};
+
+        // #6: At 6 weapons — no new weapons, only level-ups + stats
+        const unowned = weaponCount < 6
+            ? allKeys.filter(k => UPGRADES_DB[k].type === 'weapon' && !this.player.weapons.find(w => w.id === k) && !evolvedBases.has(k))
+            : [];
+        const owned = allKeys.filter(k =>
+            UPGRADES_DB[k].type === 'weapon' &&
+            !!this.player.weapons.find(w => w.id === k) &&
+            !evolvedBases.has(k)
+        );
+        // #7/#8: Exclude stats that hit their cap
+        const stats = allKeys.filter(k => {
+            if (UPGRADES_DB[k].type !== 'stat') return false;
+            if (k === 'Spinach' && (statCounts['Spinach'] || 0) >= 5) return false;
+            if (k === 'Magnet'  && (statCounts['Magnet']  || 0) >= 5) return false;
+            return true;
+        });
+        const pool = [...unowned, ...owned, ...stats].sort(() => Math.random() - 0.5).slice(0, 3);
+
+        // #9: Inject evolution cards first (gold, player-triggered)
+        const pendingEvos = this.player.getPendingEvolutions();
+        pendingEvos.forEach(evo => {
+            const baseDef    = UPGRADES_DB[evo.weapon]  || {};
+            const passiveDef = UPGRADES_DB[evo.passive] || {};
+            const resultDef  = UPGRADES_DB[evo.result]  || {};
+            const div = document.createElement('div');
+            div.className = 'upgrade-item upgrade-item--evolution';
+            div.innerHTML = `
+                <span class="upgrade-type-badge badge-evolution">⚡ EVOLUCIÓN</span>
+                <div class="upgrade-icon">${resultDef.icon || '⚡'}</div>
+                <div class="upgrade-info">
+                    <h4>${resultDef.name || evo.result}</h4>
+                    <p class="evo-recipe">${baseDef.icon || ''} ${baseDef.name || evo.weapon} + ${passiveDef.icon || ''} ${passiveDef.name || evo.passive}</p>
+                    <p>${resultDef.desc || ''}</p>
+                </div>`;
+            const confirm = () => this._showEvolutionConfirm(evo);
+            div.onclick = confirm;
+            div.addEventListener('touchend', e => { e.preventDefault(); confirm(); });
+            container.appendChild(div);
+        });
 
         pool.forEach(k => {
-            const up     = UPGRADES_DB[k];
+            const up      = UPGRADES_DB[k];
             const isOwned = this.player.weapons.find(w => w.id === k);
-            const div    = document.createElement('div');
+            const div     = document.createElement('div');
             div.className = 'upgrade-item';
-            const badge  = up.type === 'weapon'
-                ? `<span class="upgrade-type-badge badge-weapon">${isOwned ? 'MEJORAR' : 'NUEVA'}</span>`
-                : `<span class="upgrade-type-badge badge-stat">STAT</span>`;
-            // Build bonus pills — show what this upgrade actually improves
+            let badge;
+            if (up.type === 'weapon') {
+                badge = `<span class="upgrade-type-badge badge-weapon">${isOwned ? 'MEJORAR' : 'NUEVA'}</span>`;
+            } else if (k === 'Spinach' || k === 'Magnet') {
+                const cur = statCounts[k] || 0;
+                badge = `<span class="upgrade-type-badge badge-stat">STAT ${cur}/5</span>`;
+            } else {
+                badge = `<span class="upgrade-type-badge badge-stat">STAT</span>`;
+            }
             const bonusPills = (up.bonus || [])
                 .map(b => `<span class="upgrade-bonus-pill">${b}</span>`)
                 .join('');
-            div.innerHTML = `${badge}<div class="upgrade-icon">${up.icon}</div><div class="upgrade-info"><h4>${up.name}${isOwned?' +':''}</h4><p>${up.desc}</p>${bonusPills ? `<div class="upgrade-bonus-row">${bonusPills}</div>` : ''}</div>`;
+            div.innerHTML = `${badge}<div class="upgrade-icon">${up.icon}</div><div class="upgrade-info"><h4>${up.name}${isOwned ? ' +' : ''}</h4><p>${up.desc}</p>${bonusPills ? `<div class="upgrade-bonus-row">${bonusPills}</div>` : ''}</div>`;
             const apply = () => {
                 if (up.type === 'weapon') this.player.addWeapon(k);
                 else this.player.applyStatUpgrade(k);
@@ -1291,6 +1355,48 @@ const Game = {
         }
     },
 
+    // #10 — Evolution confirmation popup
+    _showEvolutionConfirm(evo) {
+        const baseDef    = UPGRADES_DB[evo.weapon]  || {};
+        const passiveDef = UPGRADES_DB[evo.passive] || {};
+        const resultDef  = UPGRADES_DB[evo.result]  || {};
+        let modal = document.getElementById('evo-confirm-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'evo-confirm-modal';
+            modal.className = 'evo-confirm-overlay';
+            document.body.appendChild(modal);
+        }
+        modal.innerHTML = `
+            <div class="evo-confirm-box">
+                <div class="evo-confirm-title">⚡ FUSIONAR HABILIDADES</div>
+                <div class="evo-confirm-recipe">
+                    <span class="evo-piece">${baseDef.icon || ''}<br><small>${baseDef.name || evo.weapon}</small></span>
+                    <span class="evo-plus">+</span>
+                    <span class="evo-piece">${passiveDef.icon || ''}<br><small>${passiveDef.name || evo.passive}</small></span>
+                    <span class="evo-plus">→</span>
+                    <span class="evo-piece evo-result">${resultDef.icon || '⚡'}<br><small>${resultDef.name || evo.result}</small></span>
+                </div>
+                <div class="evo-confirm-desc">${resultDef.desc || ''}</div>
+                <div class="evo-confirm-buttons">
+                    <button id="evo-btn-yes" class="evo-btn evo-btn-yes">✅ EVOLUCIONAR</button>
+                    <button id="evo-btn-no"  class="evo-btn evo-btn-no">❌ AHORA NO</button>
+                </div>
+            </div>`;
+        modal.style.display = 'flex';
+        document.getElementById('evo-btn-yes').onclick = () => {
+            modal.style.display = 'none';
+            this.player.applyEvolution(evo);
+            this.state = 'PLAY';
+            document.getElementById('levelup-screen').style.display = 'none';
+            this.updateWeaponBar();
+            this.showEvolutionBanner(resultDef);
+        };
+        document.getElementById('evo-btn-no').onclick = () => {
+            modal.style.display = 'none';
+        };
+    },
+
     checkKillMilestone() {
         if (this.nextKillMilestone < this.killMilestones.length &&
             this.kills >= this.killMilestones[this.nextKillMilestone]) {
@@ -1344,6 +1450,7 @@ const Game = {
                 const e = new Enemy(bs.x, bs.y, data, 1);
                 this.enemies.push(e);
                 this.currentBoss = e;
+                AudioEngine.setBossTheme(true);   // switch to intense boss music
                 // Clear all regular enemies when boss appears
                 this.enemies = this.enemies.filter(en => en === e || en.isBoss);
                 this.shake = 28;
@@ -1364,6 +1471,7 @@ const Game = {
             Souls.add(15); // boss soul reward
             this.currentBoss = null;
             this.bossArena = null; this._fogDmgFlash = 0;  // remove arena wall
+            AudioEngine.setBossTheme(false);  // return to normal music
             // Boss reward: full level up + full heal
             this.player.level++;
             this.player.xp = 0;
@@ -1475,11 +1583,11 @@ const Game = {
         if (this.state !== 'PLAY') return;
         this._dt = dt;   // cached for updateHUD() called from draw()
 
-        this.time += dt;
-        // 3-phase difficulty curve — no permanent cap
-        // Phase 1 (0-2 min): gentle ramp, player learns
-        // Phase 2 (2-8 min): controlled acceleration
-        // Phase 3 (8+ min): slow exponential, always increasing
+        // ── TIME / DIFFICULTY — paused while a boss is alive ──────
+        const bossActive = !!(this.currentBoss && !this.currentBoss.dead) || !!this.bossSpawning;
+        if (!bossActive) {
+            this.time += dt;
+        }
         const _t = this.time;
         this.difficulty = _t < 120  ? 1 + _t / 120 * 0.5
                         : _t < 480  ? 1.5 + (_t - 120) / 360 * 2.0
@@ -1763,7 +1871,8 @@ const Game = {
                 if (this.player.activeBuffs.shield > 0) {
                     this.player.activeBuffs.shield = 0; this.shake = 5; this.player.iframe = 0.5;
                 } else {
-                    const rawDmg = Math.max(1, (e.dmg - this.player.stats.reduction) * (this.player.kaelUltraDmgReduct > 0 ? 0.9 : 1));
+                    const timeDmgMult = 1 + Math.floor(this.time / 60) * 0.06; // +6% per minute
+                    const rawDmg = Math.max(1, (e.dmg * timeDmgMult - this.player.stats.reduction) * (this.player.kaelUltraDmgReduct > 0 ? 0.9 : 1));
                     const dmg = Math.min(rawDmg, Math.ceil(this.player.maxHp * 0.28)); // no insta-kill
                     this.player.hp -= dmg; this.player.iframe = 0.65; this.shake = 7;
                     this.dmgFlash = 0.55; // synced with rAF loop — no setTimeout
@@ -1801,9 +1910,9 @@ const Game = {
                 this.gems.push({ x:e.x, y:e.y, xp: xpAmount, tier: gemTier });
                 this.spawnParticle(e.x, e.y, e.color, e.isBoss?20:10);
                 AudioEngine.sfxKill();
-                // Life orb drop (8% chance, bosses always drop)
-                if (e.isBoss || Math.random() < 0.08)
-                    this.lifeOrbs.push({ x:e.x, y:e.y, hp: e.isBoss ? 20 : 8, r:10, pulse:0 });
+                // Life orb drop (2.5% chance, bosses always drop but heal less)
+                if (e.isBoss || Math.random() < 0.025)
+                    this.lifeOrbs.push({ x:e.x, y:e.y, hp: e.isBoss ? 10 : 8, r:10, pulse:0 });
                 if (Math.random() < 0.10) this.spawnPowerUp(e.x, e.y);
                 // Vampire
                 if (this.player.stats.vampire > 0) {
@@ -1819,11 +1928,14 @@ const Game = {
             }
         }
 
-        // Enemy-enemy separation — grid-bucketed to stay O(N) with big hordes
-        // Only compare enemies in the same or adjacent grid cells (cell = 40px)
+        // Enemy-enemy separation — only separate visible enemies to save CPU
         const CELL = 40;
         const sepGrid = new Map();
+        const sepRange = Game.lw * 0.7; // only separate enemies within ~70% of screen width
         for (const e of this.enemies) {
+            const dx = Math.abs(e.x - this.player.x);
+            const dy = Math.abs(e.y - this.player.y);
+            if (dx > sepRange || dy > sepRange) continue; // skip far enemies
             const key = `${Math.floor(e.x/CELL)},${Math.floor(e.y/CELL)}`;
             if (!sepGrid.has(key)) sepGrid.set(key, []);
             sepGrid.get(key).push(e);
@@ -1853,6 +1965,8 @@ const Game = {
 
         // Player projectiles — Spatial Hash O(K) + scaled crits + knockback
         SpatialHash.rebuild(this.enemies); // one rebuild per frame
+        // Cap player projectiles
+        if (this.projectiles.length > 80) this.projectiles.splice(0, this.projectiles.length - 80);
         for (let i = this.projectiles.length-1; i >= 0; i--) {
             const p = this.projectiles[i];
             p.life -= dt;
@@ -1874,7 +1988,7 @@ const Game = {
                             e._poisonDmg   = p.poisonDmg;
                         }
                         AudioEngine.sfxHit();
-                        this.spawnText(e.x, e.y, Math.floor(dmg), ic);
+                        if (ic || this.enemies.length < 30) this.spawnText(e.x, e.y, Math.floor(dmg), ic);
                         this.spawnParticle(e.x, e.y, p.poison ? '#44ff88' : e.color, 4);
                         // No knockback for projectile weapons (arrows, wand, knife, etc)
                         // Hit-stop on crits (mobile: 2 frames, desktop: 4)
@@ -1892,6 +2006,8 @@ const Game = {
         }
 
         // Enemy projectiles
+        // Cap enemy projectiles to avoid performance issues
+        if (this.enemyProjectiles.length > 120) this.enemyProjectiles.splice(0, this.enemyProjectiles.length - 120);
         for (let i = this.enemyProjectiles.length-1; i >= 0; i--) {
             const ep = this.enemyProjectiles[i];
             // Homing — steers toward player slowly
@@ -1947,7 +2063,8 @@ const Game = {
             if (!blockedByOrb && ep.dmg > 0 && M.dist(ep.x, ep.y, this.player.x, this.player.y) < ep.r + this.player.r && this.player.iframe <= 0) {
                 if (this.player.activeBuffs.shield > 0) { this.player.activeBuffs.shield = 0; }
                 else {
-                    const rawDmg2 = Math.max(1, (ep.dmg - this.player.stats.reduction) * (this.player.kaelUltraDmgReduct > 0 ? 0.9 : 1));
+                    const timeDmgMult2 = 1 + Math.floor(this.time / 60) * 0.06;
+                    const rawDmg2 = Math.max(1, (ep.dmg * timeDmgMult2 - this.player.stats.reduction) * (this.player.kaelUltraDmgReduct > 0 ? 0.9 : 1));
                     const dmg = Math.min(rawDmg2, Math.ceil(this.player.maxHp * 0.28)); // no insta-kill
                     this.player.hp -= dmg; this.player.iframe = 0.5; this.shake = 5;
                     if (this.player.hp <= 0) { this.player.hp = 0; this.gameOver(); return; }
@@ -1963,7 +2080,7 @@ const Game = {
         // Runs every 6 frames to avoid per-frame overhead
         if (!this._gemMergeFrame) this._gemMergeFrame = 0;
         this._gemMergeFrame++;
-        if (this._gemMergeFrame % 4 === 0 && this.gems.length > 5) {
+        if (this._gemMergeFrame % 8 === 0 && this.gems.length > 5) {
             const MERGE_COUNT  = [5,    5   ];  // how many of tier N merge into tier N+1
             const MERGE_RADIUS = [55,   85  ];  // max cluster radius per tier
             const MAX_TIER     = 1;             // tier 2 = final, no further merging
@@ -2010,6 +2127,12 @@ const Game = {
             }
         }
 
+        // Cap gems to prevent performance issues
+        if (this.gems.length > 200) {
+            // Keep highest tier gems, drop excess blues
+            this.gems.sort((a, b) => (b.tier||0) - (a.tier||0));
+            this.gems.splice(200);
+        }
         // XP gems
         const pickupRange  = this.gameMode === 'frenetic' ? this.player.pickupRange * 2.0 : this.player.pickupRange;
         const gemPullSpeed = this.gameMode === 'frenetic' ? 18 : 10;
@@ -2837,6 +2960,7 @@ const Game = {
     async gameOver() {
         if (this.state === 'GAMEOVER') return;
         this.state = 'GAMEOVER';
+        AudioEngine.stopBgm(1.5);  // fade out music on death
         const m = Math.floor(this.time/60), s = Math.floor(this.time%60);
         const weapons = this.player.weapons.map(w => UPGRADES_DB[w.id]?.icon||'?').join(' ');
         // Build new-this-session highlights

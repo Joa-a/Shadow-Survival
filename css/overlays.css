@@ -206,8 +206,76 @@
     font-size:8px; letter-spacing:2px; font-family:'Orbitron',sans-serif;
     padding:2px 8px; border-radius:2px;
 }
-.badge-weapon { color:#ff88aa; border:1px solid #441122; background:rgba(255,34,85,0.08); }
-.badge-stat   { color:#88aaff; border:1px solid #112244; background:rgba(68,102,255,0.08); }
+.badge-weapon    { color:#ff88aa; border:1px solid #441122; background:rgba(255,34,85,0.08); }
+.badge-stat      { color:#88aaff; border:1px solid #112244; background:rgba(68,102,255,0.08); }
+.badge-evolution { color:#ffd700; border:1px solid #664400; background:rgba(255,180,0,0.12); }
+
+/* Evolution upgrade card — gold glow */
+.upgrade-item--evolution {
+    border-color: #ffd700 !important;
+    box-shadow: 0 0 18px rgba(255,215,0,0.35), inset 0 0 8px rgba(255,215,0,0.06) !important;
+    animation: evo-pulse 2s ease-in-out infinite;
+}
+.upgrade-item--evolution .upgrade-icon { text-shadow: 0 0 14px #ffd700; }
+.upgrade-item--evolution h4 { color:#ffd700; }
+.evo-recipe { font-size:11px; color:#cc9900; margin:2px 0 4px; }
+@keyframes evo-pulse {
+    0%,100% { box-shadow:0 0 14px rgba(255,215,0,0.3), inset 0 0 6px rgba(255,215,0,0.05); }
+    50%      { box-shadow:0 0 28px rgba(255,215,0,0.6), inset 0 0 12px rgba(255,215,0,0.12); }
+}
+
+/* Evolution confirmation modal */
+.evo-confirm-overlay {
+    position:fixed; inset:0; z-index:9999;
+    background:rgba(0,0,0,0.82);
+    display:none; align-items:center; justify-content:center;
+}
+.evo-confirm-box {
+    background:linear-gradient(160deg,#110a22,#1a0e33);
+    border:2px solid #ffd700;
+    border-radius:12px;
+    padding:28px 24px 22px;
+    max-width:360px; width:90%;
+    text-align:center;
+    box-shadow:0 0 40px rgba(255,215,0,0.3);
+}
+.evo-confirm-title {
+    font-family:'Orbitron',sans-serif;
+    color:#ffd700; font-size:15px; letter-spacing:3px; margin-bottom:18px;
+}
+.evo-confirm-recipe {
+    display:flex; align-items:center; justify-content:center;
+    gap:10px; margin-bottom:16px;
+}
+.evo-piece {
+    font-size:26px; line-height:1.2;
+    display:flex; flex-direction:column; align-items:center;
+}
+.evo-piece small { font-size:9px; color:#aaa; letter-spacing:1px; }
+.evo-result      { color:#ffd700; filter:drop-shadow(0 0 8px #ffd700); }
+.evo-plus        { font-size:20px; color:#666; font-weight:bold; }
+.evo-confirm-desc {
+    font-size:12px; color:#aaa; line-height:1.5;
+    margin-bottom:20px; padding:0 8px;
+}
+.evo-confirm-buttons { display:flex; gap:10px; justify-content:center; }
+.evo-btn {
+    font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:1px;
+    padding:10px 18px; border-radius:6px; border:none; cursor:pointer;
+    transition:transform 0.1s, box-shadow 0.1s;
+}
+.evo-btn:active { transform:scale(0.96); }
+.evo-btn-yes {
+    background:linear-gradient(135deg,#664400,#aa7700);
+    color:#ffd700; border:1px solid #ffd700;
+    box-shadow:0 0 12px rgba(255,215,0,0.3);
+}
+.evo-btn-yes:hover { box-shadow:0 0 20px rgba(255,215,0,0.5); }
+.evo-btn-no  {
+    background:rgba(255,255,255,0.05); color:#888;
+    border:1px solid #333;
+}
+
 
 /* Pause screen */
 #pause-screen {

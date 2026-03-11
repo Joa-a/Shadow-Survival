@@ -37,18 +37,28 @@ class Player extends Entity {
 
     applyStatUpgrade(id) {
         this._unlockedPassives = this._unlockedPassives || new Set();
+        this._statCounts       = this._statCounts || {};
         switch(id) {
             case 'Boots':   this.speed *= 1.15;   break;
             case 'Spinach': {
-                // Diminishing returns: each Spinach is worth less than the last
-                // 1st:+0.22  2nd:+0.17  3rd:+0.13  4th:+0.10  5th:+0.09
-                const accumulated = this.stats.damageMult - 1.0;
-                const bonus = 0.22 / (1 + accumulated * 0.5);
-                this.stats.damageMult += bonus;
+                // #7: Flat +12% per stack, max 5 stacks
+                const spinCount = this._statCounts['Spinach'] || 0;
+                if (spinCount < 5) {
+                    this.stats.damageMult += 0.12;
+                    this._statCounts['Spinach'] = spinCount + 1;
+                }
                 break;
             }
             case 'Armor':   this.stats.reduction  += 3;     break;
-            case 'Magnet':  this.pickupRange *= 1.35;       break;
+            case 'Magnet': {
+                // #8: +20px per stack, max 5 stacks → base 100 + 100 = 200 (+100%)
+                const magCount = this._statCounts['Magnet'] || 0;
+                if (magCount < 5) {
+                    this.pickupRange += 20;
+                    this._statCounts['Magnet'] = magCount + 1;
+                }
+                break;
+            }
             case 'Regen':   this.stats.regen  += 0.4;       break;
             case 'Ultra':   Game.upgradeBurst();            break;
             case 'Vampire': this.stats.vampire += 1;        break;
@@ -60,24 +70,39 @@ class Player extends Entity {
     // ── Weapon Evolution check ─────────────────────────────────────
     // Called after every weapon level-up or passive unlock.
     // Requires: weapon at max level (8) + specific passive unlocked.
-    _checkEvolutions() {
-        this._unlockedPassives = this._unlockedPassives || new Set();
-        if (typeof EVOLUTION_TABLE === 'undefined') return;
+    // Returns array of evolutions the player can trigger right now
+    getPendingEvolutions() {
+        this._unlockedPassives   = this._unlockedPassives   || new Set();
+        this._evolvedBaseWeapons = this._evolvedBaseWeapons || new Set();
+        if (typeof EVOLUTION_TABLE === 'undefined') return [];
+        const pending = [];
         for (const evo of EVOLUTION_TABLE) {
             const weapon      = this.weapons.find(w => w.id === evo.weapon);
             const atMaxLevel  = weapon && weapon.level >= 8;
             const hasPassive  = this._unlockedPassives.has(evo.passive);
-            const alreadyDone = this.weapons.find(w => w.id === evo.result);
-            if (atMaxLevel && hasPassive && !alreadyDone) {
-                const idx = this.weapons.indexOf(weapon);
-                const cls = WeaponFactory[evo.result];
-                if (cls) {
-                    this.weapons[idx] = new cls(this);
-                    if (typeof Game !== 'undefined')
-                        Game.showEvolutionBanner(UPGRADES_DB[evo.result]);
-                }
-            }
+            const alreadyDone = this.weapons.find(w => w.id === evo.result)
+                             || this._evolvedBaseWeapons.has(evo.weapon);
+            if (atMaxLevel && hasPassive && !alreadyDone) pending.push(evo);
         }
+        return pending;
+    }
+
+    // Called when player confirms an evolution from the UI
+    applyEvolution(evo) {
+        this._evolvedBaseWeapons = this._evolvedBaseWeapons || new Set();
+        const weapon = this.weapons.find(w => w.id === evo.weapon);
+        if (!weapon) return;
+        const idx = this.weapons.indexOf(weapon);
+        const cls = WeaponFactory[evo.result];
+        if (cls) {
+            this.weapons[idx] = new cls(this);
+            this._evolvedBaseWeapons.add(evo.weapon); // prevent base from reappearing
+        }
+    }
+
+    _checkEvolutions() {
+        // No longer auto-evolves. Evolution is now player-triggered.
+        // getPendingEvolutions() + applyEvolution() handle it.
     }
 
     update(dt, input) {
