@@ -579,3 +579,23 @@
     border-color: #ffaa44;
     color: #ffcc77;
 }
+
+/* ── Revive button ── */
+.btn-revive {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px; letter-spacing: 2px;
+    background: linear-gradient(135deg, #1a0a2e, #2d0a4e);
+    border: 2px solid #6600cc;
+    color: #cc88ff;
+    padding: 14px 28px; border-radius: 8px;
+    cursor: pointer; width: 100%;
+    box-shadow: 0 0 20px rgba(120,0,200,0.3);
+    transition: all 0.2s;
+}
+.btn-revive:hover:not(:disabled), .btn-revive:active:not(:disabled) {
+    background: linear-gradient(135deg, #2d0a4e, #440a6e);
+    border-color: #aa44ff;
+    box-shadow: 0 0 30px rgba(150,0,255,0.5);
+    color: #eeccff;
+}
+.btn-revive:disabled { opacity: 0.5; cursor: not-allowed; }

@@ -704,6 +704,7 @@ const Game = {
         this.kills            = 0;  this.time              = 0;  this.difficulty       = 1;
         this.lastMinute       = 0;  this.combo             = 0;  this.comboTimer       = 0;
         this.shake            = 0;  this.powerUpTimer      = 0;  this.spawnTimer       = 0;
+        this._canRevive       = true;  // one revive per run
         this.burstLevel       = 1;  this.burstCharges      = 1;  this.burstMaxCharges  = 1;
         this.burstMaxCooldown = 120; this.burstCooldown    = 0;  this.bossKills        = 0;
         this.hitstopFrames = 0; this.dmgFlash = 0;
@@ -742,6 +743,34 @@ const Game = {
         if (badge) badge.style.display = this.gameMode === 'frenetic' ? 'block' : 'none';
         AudioEngine.sfxPowerup();
         this.updateWeaponBar();
+    },
+
+    _doRevive() {
+        if (!this._canRevive) return;
+        this._canRevive = false;
+
+        // Simulate ad — in production replace this with real ad SDK call
+        const revBtn = document.getElementById('btn-revive');
+        if (revBtn) { revBtn.disabled = true; revBtn.textContent = '⏳ Cargando anuncio...'; }
+
+        // Simulate 3s ad watch then revive
+        setTimeout(() => {
+            document.getElementById('gameover-screen').style.display = 'none';
+            this.state = 'PLAY';
+            // Restore player with 50% HP
+            this.player.hp = Math.ceil(this.player.maxHp * 0.5);
+            // Clear enemies around player to give breathing room
+            this.enemies = this.enemies.filter(e => {
+                const dx = e.x - this.player.x, dy = e.y - this.player.y;
+                return Math.sqrt(dx*dx+dy*dy) > 300;
+            });
+            // Show revival particle burst
+            for (let i = 0; i < 16; i++) {
+                const a = (Math.PI*2/16)*i;
+                this.spawnParticle(this.player.x + Math.cos(a)*40, this.player.y + Math.sin(a)*40, '#88ffcc', 8);
+            }
+            this.shake = 8;
+        }, 3000); // replace 3000 with real ad callback
     },
 
     togglePause() {
@@ -1400,18 +1429,18 @@ const Game = {
         const isFrenetic = this.gameMode === 'frenetic';
         // Aggressive spawn ramp — screen packed by 5-10 min
         const spawnBase = this.time < 60
-            ? Math.max(0.5, 2.2 - this.time / 35)            // 0-1 min: quick start
+            ? Math.max(0.35, 1.8 - this.time / 35)            // 0-1 min: quick start
             : this.time < 180
-            ? Math.max(0.22, 0.9 - (this.time - 60) / 180)   // 1-3 min: builds fast
+            ? Math.max(0.16, 0.7 - (this.time - 60) / 180)   // 1-3 min: builds fast
             : this.time < 360
-            ? Math.max(0.12, 0.3 - (this.time - 180) / 500)  // 3-6 min: dense
-            : Math.max(0.08, 0.16 - (this.time - 360) / 900); // 6+ min: relentless
+            ? Math.max(0.09, 0.22 - (this.time - 180) / 500) // 3-6 min: dense
+            : Math.max(0.06, 0.12 - (this.time - 360) / 900); // 6+ min: relentless
         // Frenetic: 2.5x faster spawns
         const spawnInterval = isFrenetic ? spawnBase / 2.5 : spawnBase;
         const enemyLimit = CONFIG.IS_MOBILE ? CONFIG.ENEMY_LIMIT_MOBILE : CONFIG.ENEMY_LIMIT;
         const maxOnScreen = isFrenetic
-            ? Math.min(enemyLimit, Math.floor(25 + this.time / 3))
-            : Math.min(enemyLimit, Math.floor(12 + this.time / 4));
+            ? Math.min(enemyLimit, Math.floor(35 + this.time / 2.5))
+            : Math.min(enemyLimit, Math.floor(18 + this.time / 3));
         this.spawnTimer += dt;
         // No regular enemy spawns while a boss is alive
         if (!this.currentBoss && this.spawnTimer >= spawnInterval && this.enemies.filter(e => !e.isBoss).length < maxOnScreen) {
@@ -1439,13 +1468,13 @@ const Game = {
         if (this._deathBarCooldown > 0) {
             this._deathBarCooldown -= dt;
         } else {
-            this.deathBar += dt * (1.2 + this.time / 300);  // much gentler rate
+            if (!this.currentBoss && !this.bossSpawning) this.deathBar += dt * (1.2 + this.time / 300);  // pause during boss
             if (this.kills > (this._lastDeathBarKills || 0) && this.kills % 10 === 0) {
                 this._lastDeathBarKills = this.kills;
                 this.deathBar += 4;
             }
         }
-        if (this.deathBar >= 100) {
+        if (this.deathBar >= 100 && !this.currentBoss && !this.bossSpawning) {
             this.deathBar = 0;
             this._deathBarCooldown = 45;   // at least 45s before next dark wave
             // Spawn a burst of elite enemies
@@ -2756,6 +2785,17 @@ const Game = {
         }
 
         Souls.flush(); // save to server immediately on game over
+
+        // Show revive button if player hasn't used it yet
+        const revSec = document.getElementById('revive-section');
+        const revBtn = document.getElementById('btn-revive');
+        if (revSec && this._canRevive) {
+            revSec.style.display = 'block';
+            revBtn.onclick = () => this._doRevive();
+        } else if (revSec) {
+            revSec.style.display = 'none';
+        }
+
         setTimeout(() => document.getElementById('gameover-screen').style.display = 'flex', 500);
     },
 
