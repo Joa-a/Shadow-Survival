@@ -682,3 +682,20 @@
     transition: all 0.2s;
 }
 .options-logout-btn:hover { color: #ff6688; border-color: #662233; }
+
+/* ── Re-roll button ── */
+.btn-reroll {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px; letter-spacing: 2px;
+    background: linear-gradient(135deg, #1a0a2e, #2d1a00);
+    border: 1px solid #aa6600;
+    color: #ffbb44;
+    padding: 10px 24px; border-radius: 8px;
+    margin-top: 14px; cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-reroll:hover, .btn-reroll:active {
+    background: linear-gradient(135deg, #2a1a3e, #3d2a00);
+    border-color: #ffbb44;
+    box-shadow: 0 0 12px rgba(255,180,0,0.3);
+}

@@ -730,6 +730,7 @@ const Game = {
     // ─────────────────────────── START ───────────────────────────
     start() {
         AudioEngine.init(); AudioEngine.resume();
+        Souls.initRunRerolls();
         this.player           = new Player(this.selectedChar);
         Souls.applyPassives(this.player);
         this.player._skinColor = Souls.getSkinColor();
@@ -1155,6 +1156,8 @@ const Game = {
     triggerLevelUp() {
         this.state = 'LEVELUP';
         AudioEngine.sfxLevel();
+        // Grant rerolls every 5 player levels
+        Souls.grantRerollsForLevel(this.player.level);
         const flash = document.getElementById('flash');
         flash.style.transition = 'opacity 0s'; flash.style.opacity = '1';
         setTimeout(() => { flash.style.transition = 'opacity 0.18s'; flash.style.opacity = '0'; }, 80);
@@ -1193,6 +1196,26 @@ const Game = {
             div.addEventListener('touchend', e => { e.preventDefault(); apply(); });
             container.appendChild(div);
         });
+        // Re-roll button
+        const rerollBtn = document.getElementById('btn-reroll');
+        const rerollCount = document.getElementById('reroll-count');
+        const updateRerollBtn = () => {
+            const charges = Souls._runRerolls;
+            if (rerollBtn) {
+                rerollBtn.style.display = charges > 0 ? 'block' : 'none';
+                if (rerollCount) rerollCount.textContent = charges;
+            }
+        };
+        updateRerollBtn();
+        if (rerollBtn) {
+            rerollBtn.onclick = rerollBtn.ontouchend = (e) => {
+                if (e.type === 'touchend') e.preventDefault();
+                if (!Souls.useReroll()) return;
+                AudioEngine.sfxPowerup && AudioEngine.sfxPowerup();
+                this.triggerLevelUp();
+            };
+        }
+
         document.getElementById('levelup-screen').style.display = 'flex';
     },
 

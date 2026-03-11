@@ -146,6 +146,8 @@ const Souls = {
             this._pending = 0;
             this._confirmed.total = Math.max(0, this._confirmed.total - remainder);
         }
+        // Check requirements
+        if (item.requires && !this.has(item.requires)) return false;
         const o = this.owned;
         o.push(itemId);
         this._confirmed.owned = o;
@@ -154,6 +156,31 @@ const Souls = {
     },
 
     has(itemId) { return this.owned.includes(itemId); },
+
+    // ── Re-roll system ────────────────────────────────────────────
+    // Charges granted every 5 player levels based on shop unlock level
+    // reroll_unlock = 1 charge/5lvls, reroll_upgrade = 2 charges/5lvls
+    get rerollLevel() {
+        if (this.has('reroll_upgrade')) return 2;
+        if (this.has('reroll_unlock'))  return 1;
+        return 0;
+    },
+    // Run-time charges for current run
+    _runRerolls: 0,
+    initRunRerolls() {
+        this._runRerolls = 0; // start at 0, granted at level 5, 10, 15...
+    },
+    grantRerollsForLevel(playerLevel) {
+        // Grant charges every 5 player levels
+        if (this.rerollLevel > 0 && playerLevel % 5 === 0) {
+            this._runRerolls += this.rerollLevel;
+        }
+    },
+    useReroll() {
+        if (this._runRerolls <= 0) return false;
+        this._runRerolls--;
+        return true;
+    },
 
     equipSkin(skinId) {
         if (skinId === 'default' || this.has(skinId)) {
@@ -229,6 +256,30 @@ const Souls = {
         });
         html += `</div>`;
 
+        // Reroll upgrades
+        const rerollItems = SHOP_ITEMS.filter(i => i.id === 'reroll_unlock' || i.id === 'reroll_upgrade');
+        html += `<div class="shop-section-title">🎲 RE-ROLL</div><div class="shop-grid">`;
+        rerollItems.forEach(item => {
+            const isOwned    = owned.includes(item.id);
+            const reqMet     = !item.requires || owned.includes(item.requires);
+            const canAfford  = total >= item.cost;
+            const locked     = !reqMet;
+            html += `<div class="shop-item ${isOwned?'shop-owned':''} ${!isOwned&&(!canAfford||locked)?'shop-cant-afford':''}">
+                <div class="shop-item-icon shop-item-icon-text">${item.icon}</div>
+                <div class="shop-item-name">${item.name}</div>
+                <div class="shop-item-desc">${item.desc}</div>
+                ${locked ? `<div class="shop-item-desc" style="color:#664455;margin-top:2px">🔒 Requiere Re-Roll</div>` : ''}
+                ${isOwned
+                    ? `<div class="shop-btn shop-btn-equipped">✓ DESBLOQUEADO</div>`
+                    : locked
+                    ? `<button class="shop-btn shop-btn-locked" disabled>🔒 ${item.cost}</button>`
+                    : `<button class="shop-btn ${canAfford?'shop-btn-buy':'shop-btn-locked'}" onclick="Souls._tryBuy('${item.id}')" ${!canAfford?'disabled':''}>
+                        ${canAfford?'👻 '+item.cost:'🔒 '+item.cost}</button>`
+                }
+            </div>`;
+        });
+        html += `</div>`;
+
         // Characters
         html += `<div class="shop-section-title">⚔ PERSONAJES</div><div class="shop-grid">`;
         chars.forEach(item => {
@@ -295,6 +346,10 @@ const SHOP_ITEMS = [
     { id:'passive_xp',       type:'passive', icon:'✨', name:'+1 XP por gema',  desc:'Cada gema recogida da 1 XP extra',               cost:120 },
     { id:'passive_speed',    type:'passive', icon:'👟', name:'+8% Velocidad',   desc:'Te mueves un poco más rápido desde el inicio',   cost:200 },
     { id:'passive_cooldown', type:'passive', icon:'⚡', name:'-8% Cooldown',    desc:'Tus armas disparan un poco más seguido',         cost:300 },
+
+    // Reroll system — unlock then upgrade (persistent, charges granted every 5 levels)
+    { id:'reroll_unlock', type:'passive', icon:'🎲', name:'Re-Roll',        desc:'Desbloquea 1 re-roll cada 5 niveles en partida',            cost:1000 },
+    { id:'reroll_upgrade',type:'passive', icon:'🎰', name:'Re-Roll II',     desc:'Mejora a 2 re-rolls cada 5 niveles. Requiere Re-Roll.',      cost:1000, requires:'reroll_unlock' },
 
     // Characters — all locked except Alaric
     { id:'char_zale',   type:'character', icon:'🔮', name:'Zale',   desc:'Mago de daño máximo, proyectiles mágicos', cost:250 },
