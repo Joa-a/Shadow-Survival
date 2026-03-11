@@ -81,30 +81,16 @@ class Enemy extends Entity {
     }
 
     _updateCharger(dt, ang) {
-        this.behaviorTimer += dt;
-        if (this.charging) {
-            this.x += this.chargeVx*dt; this.y += this.chargeVy*dt;
-            this.chargeDur -= dt; if (this.chargeDur <= 0) this.charging = false;
-        } else if (this.behaviorTimer > 2.8) {
-            this.behaviorTimer = 0; this.charging = true;
-            this.chargeVx = Math.cos(ang)*this.speed*4.2;
-            this.chargeVy = Math.sin(ang)*this.speed*4.2;
-            this.chargeDur = 0.32;
-        } else {
-            this.x += Math.cos(ang)*this.speed*0.5*dt;
-            this.y += Math.sin(ang)*this.speed*0.5*dt;
+        // Dash removed — moves steadily but faster than normal
+        {
+            this.x += Math.cos(ang)*this.speed*0.9*dt;
+            this.y += Math.sin(ang)*this.speed*0.9*dt;
         }
     }
 
     _updatePhantom(dt, px, py, ang) {
         this.behaviorTimer += dt;
-        if (this.behaviorTimer > 4) {
-            this.behaviorTimer = 0;
-            const a2 = Math.random() * Math.PI * 2;
-            const tpDist = 350 + Math.random() * 150;
-            this.x = px + Math.cos(a2)*tpDist; this.y = py + Math.sin(a2)*tpDist;
-            Game.spawnParticle(this.x, this.y, '#cc44ff', 8);
-        }
+        // Teleport removed — ranged enemy keeps distance without warping
         this.x += Math.cos(ang)*this.speed*0.8*dt;
         this.y += Math.sin(ang)*this.speed*0.8*dt;
     }
@@ -165,15 +151,7 @@ class Enemy extends Entity {
             this.speed = this.baseSpeed * 1.55; // faster while invisible
         } else {
             this.speed = this.baseSpeed;
-            // Teleport strike: snap close when becoming visible
-            if (cycle < visDur * 0.05 && this.lastInvis) {
-                const d2 = M.dist(this.x, this.y, px, py);
-                if (d2 > 200) {
-                    this.x = px + Math.cos(ang + Math.PI) * 140;
-                    this.y = py + Math.sin(ang + Math.PI) * 140;
-                    Game.spawnParticle(this.x, this.y, '#aa22ff', 10);
-                }
-            }
+            // Shadow approaches normally — no teleport
         }
         this.lastInvis = this.invisible;
         this.x += Math.cos(ang) * this.speed * dt;

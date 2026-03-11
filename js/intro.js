@@ -12,19 +12,10 @@ const Intro = {
     _loadTarget:   0,
     _loadDone:     false,
     _loadRAF:      null,
-    _loadSteps: [
-        { label: 'INICIALIZANDO MOTOR...',   end: 15  },
-        { label: 'GENERANDO MUNDO...',       end: 30  },
-        { label: 'CARGANDO ENEMIGOS...',     end: 48  },
-        { label: 'PREPARANDO ARMAS...',      end: 63  },
-        { label: 'CALIBRANDO SOMBRAS...',    end: 77  },
-        { label: 'INVOCANDO OSCURIDAD...',   end: 90  },
-        { label: 'LISTO.',                   end: 100 },
-    ],
+    _loadSteps: [],
     _loadCurrentStep: 0,
     _loadParticles: [],
     _loadStartTime: 0,
-    _totalDuration: 3200,   // ms total de carga falsa
 
     startLoading(onComplete) {
         this._onLoadComplete = onComplete;
@@ -43,7 +34,7 @@ const Intro = {
         this._resizeLoadCanvas();
         window.addEventListener('resize', () => this._resizeLoadCanvas());
 
-        // Generar partículas de fondo
+        // Partículas de fondo
         for (let i = 0; i < 80; i++) {
             this._loadParticles.push({
                 x:   Math.random() * window.innerWidth,
@@ -56,7 +47,78 @@ const Intro = {
             });
         }
 
+        // ── REAL ASSET LOADING ──────────────────────────────────────
+        // Each task advances progress by its weight (total = 100)
+        // Tasks: fonts(15), image1(25), image2(25), audio(10), auth(15), final(10)
+        this._loadSteps = [
+            { label: 'CARGANDO FUENTES...',        end: 15  },
+            { label: 'CARGANDO MAPA BOSQUE...',    end: 40  },
+            { label: 'CARGANDO MAPA CEMENTERIO...', end: 65 },
+            { label: 'INICIANDO AUDIO...',         end: 75  },
+            { label: 'CONECTANDO SERVIDOR...',     end: 90  },
+            { label: 'LISTO.',                     end: 100 },
+        ];
+
         this._loadRAF = requestAnimationFrame(t => this._loadLoop(t));
+
+        const advance = (to) => { this._loadTarget = Math.max(this._loadTarget, to); };
+
+        // Task 1 — Fonts
+        document.fonts.ready.then(() => {
+            this._loadCurrentStep = 0;
+            advance(15);
+        }).catch(() => advance(15));
+
+        // Task 2 — Forest map image
+        const img1 = new Image();
+        img1.onload = img1.onerror = () => {
+            this._loadCurrentStep = 1;
+            advance(40);
+        };
+        img1.src = 'assets/map_floor.jpg';
+
+        // Task 3 — Cemetery map image
+        const img2 = new Image();
+        img2.onload = img2.onerror = () => {
+            this._loadCurrentStep = 2;
+            advance(65);
+        };
+        img2.src = 'assets/map_cemetery.jpg';
+
+        // Task 4 — Audio init
+        const initAudio = () => {
+            try { AudioEngine.init(); } catch(e) {}
+            this._loadCurrentStep = 3;
+            advance(75);
+        };
+        // Audio requires user gesture on iOS — do best-effort with timeout
+        setTimeout(initAudio, 100);
+
+        // Task 5 — Auth server ping (with timeout fallback)
+        const authDone = () => {
+            this._loadCurrentStep = 4;
+            advance(90);
+        };
+        const authTimeout = setTimeout(authDone, 3000);
+        if (typeof Auth !== 'undefined' && Auth._configured) {
+            fetch(Auth.API_URL + '/scores', { signal: AbortSignal.timeout(2800) })
+                .then(() => { clearTimeout(authTimeout); authDone(); })
+                .catch(() => { clearTimeout(authTimeout); authDone(); });
+        } else {
+            setTimeout(() => { clearTimeout(authTimeout); authDone(); }, 400);
+        }
+
+        // Task 6 — All done: final step after all above resolve
+        // Watch for _loadTarget reaching 90, then push to 100
+        const finalCheck = setInterval(() => {
+            if (this._loadTarget >= 90) {
+                clearInterval(finalCheck);
+                setTimeout(() => {
+                    this._loadCurrentStep = 5;
+                    advance(100);
+                }, 200);
+            }
+        }, 100);
     },
 
     _resizeLoadCanvas() {
@@ -75,23 +137,15 @@ const Intro = {
     _loadLoop(now) {
         if (this._loadDone) return;
 
-        const elapsed = now - this._loadStartTime;
-        const pct     = Math.min(1, elapsed / this._totalDuration);
-
-        // Advance step targets
-        for (let i = 0; i < this._loadSteps.length; i++) {
-            const step = this._loadSteps[i];
-            const stepPct = step.end / 100;
-            if (pct >= stepPct - 0.01) {
-                this._loadCurrentStep = i;
-            }
-        }
-        this._loadTarget   = Math.min(100, pct * 100);
-        this._loadProgress = M.lerp(this._loadProgress, this._loadTarget, 0.08);
+        // Smooth interpolation toward real target
+        this._loadProgress = this._loadProgress + (this._loadTarget - this._loadProgress) * 0.06;
+        // Minimum visible progress so bar always moves slightly
+        const minProgress = Math.min(this._loadTarget, (now - this._loadStartTime) / 80);
+        this._loadProgress = Math.max(this._loadProgress, Math.min(minProgress, 85));
 
         this._drawLoading(now);
 
-        if (pct >= 1 && this._loadProgress >= 99.5) {
+        if (this._loadTarget >= 100 && this._loadProgress >= 99.5) {
             this._finishLoading();
             return;
         }

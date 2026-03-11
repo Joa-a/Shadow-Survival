@@ -4,6 +4,25 @@
 const AudioEngine = {
     ctx: null,
     _lastHit: 0,
+    _sfxMuted: false,
+    _musicMuted: false,
+
+    setSfx(enabled) {
+        this._sfxMuted = !enabled;
+        try { localStorage.setItem('ss_sfx', enabled ? '1' : '0'); } catch(e) {}
+    },
+    setMusic(enabled) {
+        this._musicMuted = !enabled;
+        try { localStorage.setItem('ss_music', enabled ? '1' : '0'); } catch(e) {}
+    },
+    loadPrefs() {
+        try {
+            const s = localStorage.getItem('ss_sfx');
+            const m = localStorage.getItem('ss_music');
+            if (s !== null) this._sfxMuted = s === '0';
+            if (m !== null) this._musicMuted = m === '0';
+        } catch(e) {}
+    },
 
     init() {
         try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -15,7 +34,7 @@ const AudioEngine = {
     },
 
     playTone(freq, type, dur, vol = 0.07, detune = 0) {
-        if (!this.ctx) return;
+        if (!this.ctx || this._sfxMuted) return;
         try {
             const o = this.ctx.createOscillator();
             const g = this.ctx.createGain();

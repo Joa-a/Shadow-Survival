@@ -96,8 +96,7 @@ const WeaponFactory = {
                     const dmg = this.dmg * (ic ? 2.2 : 1);
                     e.takeDamage(dmg);
                     const n = M.norm(dx, dy);
-                    e.knockback.x = n.x * 400;
-                    e.knockback.y = n.y * 400;
+                    if (!e.isBoss) { e.knockback.x = n.x * 400; e.knockback.y = n.y * 400; }
                     Game.spawnParticle(e.x, e.y, '#ff44aa', 5);
                     Game.spawnText(e.x, e.y, Math.floor(dmg), ic);
                     AudioEngine.sfxHit();
@@ -301,7 +300,7 @@ const WeaponFactory = {
 // ─────────────────────────────────────────────────────────────
 'Bible': class extends Weapon {
     constructor(p) {
-        super(p, 'Bible', 9, 3);
+        super(p, 'Bible', 11, 3); // base dmg increased 9→11
         this.angle  = 0;
         this.orbitR = 88;
     }
@@ -309,15 +308,16 @@ const WeaponFactory = {
         this.angle  += dt * (3.8 + this.level * 0.35);
         this.orbitR  = 88 + this.level * 10;
         const orbs   = this.level >= 5 ? 5 : this.level >= 4 ? 4 : this.level >= 3 ? 3 : this.level >= 2 ? 2 : 1;
+        // Damage scales +25% per level up to 150% total bonus at level 5
+        // Level 1: 1.0x, Level 2: 1.25x, Level 3: 1.5x, Level 4: 1.75x, Level 5: 2.5x (cap 150% bonus)
+        const dmgMult = Math.min(1 + (this.level - 1) * 0.25, 2.5);
         for (let o = 0; o < orbs; o++) {
             const a  = this.angle + (Math.PI * 2 / orbs) * o;
             const bx = this.player.x + Math.cos(a) * this.orbitR;
             const by = this.player.y + Math.sin(a) * this.orbitR;
             for (const e of Game.enemies) {
                 if (M.dist(bx, by, e.x, e.y) < e.r + 20) {
-                    e.takeDamage(this.dmg * dt * 5);
-                    e.knockback.x = Math.cos(a) * 200;
-                    e.knockback.y = Math.sin(a) * 200;
+                    e.takeDamage(this.dmg * dt * 5 * dmgMult);
                 }
             }
         }
@@ -449,8 +449,7 @@ const WeaponFactory = {
                         const d  = this.dmg * (ic ? 2.4 : 1);
                         e.takeDamage(d);
                         const n = dist > 0 ? M.norm(dx, dy) : { x:1, y:0 };
-                        e.knockback.x = n.x * 300;
-                        e.knockback.y = n.y * 300;
+                        if (!e.isBoss) { e.knockback.x = n.x * 300; e.knockback.y = n.y * 300; }
                         Game.spawnParticle(e.x, e.y, '#ffffaa', 7);
                         Game.spawnText(e.x, e.y, Math.floor(d), ic);
                         AudioEngine.sfxHit();
@@ -907,7 +906,7 @@ const WeaponFactory = {
                 Game.spawnParticle(e.x, e.y, '#cc44ff', 6);
                 Game.spawnParticle(e.x, e.y, '#ff2255', 3);
                 const nd = M.norm(e.x - Game.player.x, e.y - Game.player.y);
-                e.knockback.x += nd.x * 380; e.knockback.y += nd.y * 380;
+                if (!e.isBoss) { e.knockback.x += nd.x * 380; e.knockback.y += nd.y * 380; }
             });
         } else if (this.timer <= 0) {
             this.timer = this.cooldown; this.swingActive = true; this.phase = 0;
@@ -1008,7 +1007,7 @@ const WeaponFactory = {
                 Game.spawnParticle(e.x, e.y, '#ffe080', 8);
                 const kb = calcKnockback(this.dmg, e.maxHp) * 2.2;
                 const nd = M.norm(e.x - Game.player.x, e.y - Game.player.y);
-                e.knockback.x += nd.x * kb; e.knockback.y += nd.y * kb;
+                if (!e.isBoss) { e.knockback.x += nd.x * kb; e.knockback.y += nd.y * kb; }
             });
 
             // 8 precision cross-beams

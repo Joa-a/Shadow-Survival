@@ -125,12 +125,28 @@ const Game = {
             if (typeof Auth !== 'undefined') Auth.renderLeaderboard('lb-list');
             document.getElementById('lb-modal').style.display = 'flex';
         };
+        const lobbyCloseLB = () => {
+            document.getElementById('lb-modal').style.display = 'none';
+        };
         const lobbyOpenLB = () => {
             const map = this.currentMap || 'dark_forest';
             if (typeof Auth !== 'undefined') Auth.renderLeaderboard('lb-list', map);
             document.getElementById('lb-modal').style.display = 'flex';
+            // Wire close buttons in case initControls hasn't run yet
+            ['lb-close-btn','lb-close-btn2'].forEach(id => {
+                const b = document.getElementById(id);
+                if (b) { b.onclick = lobbyCloseLB; b.ontouchend = e => { e.preventDefault(); lobbyCloseLB(); }; }
+            });
             document.querySelectorAll('.lb-map-tab').forEach(t => {
                 t.classList.toggle('lb-map-tab-active', t.dataset.map === map);
+                t.onclick = () => {
+                    const m = t.dataset.map;
+                    if (typeof Auth !== 'undefined') Auth.renderLeaderboard('lb-list', m);
+                    document.querySelectorAll('.lb-map-tab').forEach(x =>
+                        x.classList.toggle('lb-map-tab-active', x.dataset.map === m)
+                    );
+                };
+                t.ontouchend = e => { e.preventDefault(); t.onclick(); };
             });
         };
         const lobbyLb = document.getElementById('btn-show-lb');
@@ -138,6 +154,24 @@ const Game = {
             lobbyLb.onclick = lobbyOpenLB;
             lobbyLb.ontouchend = e => { e.preventDefault(); lobbyOpenLB(); };
         }
+
+        // Options button
+        AudioEngine.loadPrefs();
+        const optBtn = document.getElementById('btn-options');
+        const optModal = document.getElementById('options-modal');
+        const optClose = document.getElementById('options-close-btn');
+        const optSfx   = document.getElementById('opt-sfx');
+        const optMusic = document.getElementById('opt-music');
+
+        const updateOptButtons = () => {
+            if (optSfx)   { optSfx.textContent   = AudioEngine._sfxMuted   ? 'OFF' : 'ON'; optSfx.classList.toggle('off', AudioEngine._sfxMuted); }
+            if (optMusic) { optMusic.textContent  = AudioEngine._musicMuted ? 'OFF' : 'ON'; optMusic.classList.toggle('off', AudioEngine._musicMuted); }
+        };
+
+        if (optBtn)   { optBtn.onclick   = () => { updateOptButtons(); optModal.style.display = 'flex'; }; optBtn.ontouchend = e => { e.preventDefault(); updateOptButtons(); optModal.style.display = 'flex'; }; }
+        if (optClose) { optClose.onclick = () => optModal.style.display = 'none'; optClose.ontouchend = e => { e.preventDefault(); optModal.style.display = 'none'; }; }
+        if (optSfx)   { optSfx.onclick   = () => { AudioEngine.setSfx(AudioEngine._sfxMuted); updateOptButtons(); }; }
+        if (optMusic) { optMusic.onclick  = () => { AudioEngine.setMusic(AudioEngine._musicMuted); updateOptButtons(); }; }
 
         // Shop button
         const shopBtn = document.getElementById('btn-open-shop');
@@ -265,9 +299,10 @@ const Game = {
         const closeLB = () => {
             document.getElementById('lb-modal').style.display = 'none';
         };
-        // Map tab clicks
+        // Map tab clicks — wire after initControls (overrides lobby wiring)
         document.querySelectorAll('.lb-map-tab').forEach(tab => {
             tab.onclick = () => openLB(tab.dataset.map);
+            tab.ontouchend = e => { e.preventDefault(); openLB(tab.dataset.map); };
         });
         ['btn-show-lb','go-show-lb','pause-show-lb'].forEach(id => {
             const btn = document.getElementById(id);
@@ -901,6 +936,9 @@ const Game = {
         const colors = { shield:'#44aaff', speed:'#44ff88', damage:'#ff4444' };
         const icons  = { shield:'🛡', speed:'⚡', damage:'🔥' };
         const t      = types[M.randInt(0, types.length - 1)];
+        // Max 2 of the same type on the field at once
+        const sameType = this.powerUps.filter(p => p.type === t).length;
+        if (sameType >= 2) return;
         this.powerUps.push({ x, y, type:t, color:colors[t], icon:icons[t], r:14, pulse:0 });
     },
 
@@ -1035,8 +1073,8 @@ const Game = {
         // Spawn strictly outside visible area — min dist = screen diagonal + buffer
         const halfW = Game.lw / 2, halfH = Game.lh / 2;
         const screenCorner = Math.sqrt(halfW * halfW + halfH * halfH);
-        const minSpawnDist = screenCorner + 80;
-        const maxSpawnDist = minSpawnDist + 200;
+        const minSpawnDist = screenCorner + 220;
+        const maxSpawnDist = minSpawnDist + 300;
         const spawnAngle   = Math.random() * Math.PI * 2;
         const spawnDist    = minSpawnDist + Math.random() * (maxSpawnDist - minSpawnDist);
         const x = this.player.x + Math.cos(spawnAngle) * spawnDist;
@@ -1541,10 +1579,20 @@ const Game = {
             }
         }
 
-        // Power-up collection
+        // Power-up collection — magnet pulls powerups too
+        const puPickupRange = this.gameMode === 'frenetic' ? this.player.pickupRange * 2.0 : this.player.pickupRange;
         for (let i = this.powerUps.length-1; i >= 0; i--) {
             const pu = this.powerUps[i]; pu.pulse += dt * 3;
-            if (M.dist(this.player.x, this.player.y, pu.x, pu.y) < this.player.r + pu.r + 10) {
+            const pd = M.dist(this.player.x, this.player.y, pu.x, pu.y);
+            // Magnet pull
+            if (pd < puPickupRange) {
+                const spd = Math.min(220, 80 + (1 - pd / puPickupRange) * 300);
+                const ang = Math.atan2(this.player.y - pu.y, this.player.x - pu.x);
+                pu.x += Math.cos(ang) * spd * dt;
+                pu.y += Math.sin(ang) * spd * dt;
+            }
+            // Pickup
+            if (pd < this.player.r + pu.r + 10) {
                 this.player.activeBuffs[pu.type] = (pu.type==='shield'?5.5:pu.type==='speed'?4.5:7);
                 AudioEngine.sfxPowerup();
                 this.spawnParticle(pu.x, pu.y, pu.color, 12);
@@ -1627,7 +1675,7 @@ const Game = {
                             const d = cone.dmg * (crit ? 2.2 : 1);
                             e.takeDamage(d);
                             const n = M.norm(dx, dy);
-                            e.knockback.x = n.x * 280; e.knockback.y = n.y * 280;
+                            if (!e.isBoss) { e.knockback.x = n.x * 280; e.knockback.y = n.y * 280; }
                             this.spawnParticle(e.x, e.y, '#ffffaa', 6);
                             this.spawnText(e.x, e.y, Math.floor(d), crit);
                             cone.hitSet.add(e);
@@ -1663,7 +1711,7 @@ const Game = {
                         const dmg  = w.dmg * (crit ? 2.2 : 1);
                         e.takeDamage(dmg);
                         const n = M.norm(dx, dy);
-                        e.knockback.x = n.x * 500; e.knockback.y = n.y * 500;
+                        if (!e.isBoss) { e.knockback.x = n.x * 500; e.knockback.y = n.y * 500; }
                         this.spawnParticle(e.x, e.y, '#ff66cc', 6);
                         this.spawnText(e.x, e.y, Math.floor(dmg), crit);
                         w.hitSet.add(e);
@@ -1718,9 +1766,10 @@ const Game = {
                 }
                 if (e === this.currentBoss) this.shake = 20;
                 this.kills++; this.combo++; this.comboTimer = 2.8;
-                // Soul drop
-                const soulAmt = e.elite ? 3 : 1;
-                Souls.add(soulAmt);
+                // Soul drop — 10% chance for normal, 30% for elite, boss always
+                const soulRoll = Math.random();
+                if (soulRoll < 0.10) Souls.add(1);
+                else if (e.elite && soulRoll < 0.30) Souls.add(3);
                 const xpMult = (this.goldTimer > 0 ? 2 : 1) * (this.gameMode === 'frenetic' ? 1.5 : 1);
                 // Elites drop 5x XP (big gem), bosses handled below
                 const xpBonus  = this.player._xpBonus || 0;
@@ -1770,7 +1819,7 @@ const Game = {
                             const d  = Math.sqrt(dx*dx + dy*dy) || 0.001;
                             const min = (a.r + b.r) * 0.88;
                             if (d < min) {
-                                const push = ((min - d) / d) * 0.25;
+                                const push = Math.min(((min - d) / d) * 0.08, 2.5);
                                 a.x += dx * push; a.y += dy * push;
                             }
                         }
@@ -1804,11 +1853,7 @@ const Game = {
                         AudioEngine.sfxHit();
                         this.spawnText(e.x, e.y, Math.floor(dmg), ic);
                         this.spawnParticle(e.x, e.y, p.poison ? '#44ff88' : e.color, 4);
-                        // Scaled knockback
-                        const kb = calcKnockback(dmg, e.maxHp);
-                        const nd = M.norm(p.x - e.x, p.y - e.y);
-                        e.knockback.x -= nd.x * kb;
-                        e.knockback.y -= nd.y * kb;
+                        // No knockback for projectile weapons (arrows, wand, knife, etc)
                         // Hit-stop on crits (mobile: 2 frames, desktop: 4)
                         if (ic) this.hitstopFrames = Math.max(this.hitstopFrames, CONFIG.IS_MOBILE ? 2 : 4);
                         if (p.piercing) {
@@ -1895,9 +1940,9 @@ const Game = {
         // Runs every 6 frames to avoid per-frame overhead
         if (!this._gemMergeFrame) this._gemMergeFrame = 0;
         this._gemMergeFrame++;
-        if (this._gemMergeFrame % 6 === 0 && this.gems.length > 10) {
-            const MERGE_COUNT  = [10,   10  ];  // how many of tier N merge into tier N+1
-            const MERGE_RADIUS = [40,   65  ];  // max cluster radius per tier
+        if (this._gemMergeFrame % 4 === 0 && this.gems.length > 5) {
+            const MERGE_COUNT  = [5,    5   ];  // how many of tier N merge into tier N+1
+            const MERGE_RADIUS = [55,   85  ];  // max cluster radius per tier
             const MAX_TIER     = 1;             // tier 2 = final, no further merging
 
             for (let tier = 0; tier <= MAX_TIER; tier++) {

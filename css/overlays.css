@@ -599,3 +599,86 @@
     color: #eeccff;
 }
 .btn-revive:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Options button ── */
+.options-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px; letter-spacing: 2px;
+    color: #aa88ff;
+    border: 1px solid #442266;
+    background: rgba(100,0,200,0.08);
+    padding: 7px 12px; border-radius: 20px;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.options-btn:hover, .options-btn:active {
+    background: rgba(100,0,200,0.2);
+    border-color: #aa88ff;
+    color: #ccaaff;
+}
+
+/* ── Options modal ── */
+.options-panel {
+    position: relative;
+    background: linear-gradient(160deg, #0a0014 0%, #12002a 100%);
+    border: 1px solid #3a1a5e;
+    border-radius: 16px;
+    padding: 32px 28px 24px;
+    width: 90%; max-width: 340px;
+    display: flex; flex-direction: column; gap: 0;
+}
+.options-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px; letter-spacing: 3px;
+    color: #cc99ff; text-align: center;
+    margin-bottom: 24px;
+}
+.options-row {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+}
+.options-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px; letter-spacing: 1.5px;
+    color: #9977bb;
+}
+.options-toggle {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px; letter-spacing: 2px;
+    padding: 6px 18px; border-radius: 20px;
+    border: 1px solid #44aa66;
+    background: rgba(0,180,80,0.12);
+    color: #44ff88; cursor: pointer;
+    transition: all 0.2s;
+}
+.options-toggle.off {
+    border-color: #662244;
+    background: rgba(180,0,60,0.12);
+    color: #ff4466;
+}
+.options-divider {
+    height: 1px; background: #2a1040;
+    margin: 4px 0;
+}
+.options-donate-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px; letter-spacing: 2px;
+    color: #ffaa44; border: 1px solid #553311;
+    background: rgba(255,140,0,0.08);
+    padding: 6px 16px; border-radius: 20px;
+    text-decoration: none; transition: all 0.2s;
+}
+.options-donate-btn:hover { background: rgba(255,140,0,0.2); color: #ffcc77; }
+.options-logout-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px; letter-spacing: 1.5px;
+    color: #664455; border: 1px solid #331122;
+    background: transparent;
+    padding: 10px; border-radius: 8px;
+    cursor: pointer; margin-top: 8px;
+    transition: all 0.2s;
+}
+.options-logout-btn:hover { color: #ff6688; border-color: #662233; }
