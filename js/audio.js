@@ -79,7 +79,7 @@ const AudioEngine = {
         // Master gain with fade-in
         const master = this.ctx.createGain();
         master.gain.setValueAtTime(0, this.ctx.currentTime);
-        master.gain.linearRampToValueAtTime(theme === 'boss' ? 0.38 : 0.28, this.ctx.currentTime + 2.5);
+        master.gain.linearRampToValueAtTime(theme === 'boss' ? 0.38 : 0.18, this.ctx.currentTime + 2.5);
         master.connect(this.ctx.destination);
         this._bgmGain = master;
 
@@ -98,7 +98,7 @@ const AudioEngine = {
 
         this._bgmComp   = comp;
         this._bgmDelay  = delay;
-        this._bgmBpm    = theme === 'boss' ? 120 : 96;
+        this._bgmBpm    = theme === 'boss' ? 120 : 72;
         this._bgmBeat   = 0;
         this._bgmNextBeat = this.ctx.currentTime;
 
@@ -158,64 +158,67 @@ const AudioEngine = {
         const b = beat % 32;
 
         // ── Am pentatonic MIDI notes ─────────────────────────────
-        // A C D E G in oct 3:  57 60 62 64 67
-        // A C D E G in oct 4:  69 72 74 76 79
-        const penta3 = [57,60,62,64,67];
         const penta4 = [69,72,74,76,79];
 
-        // ── BASS hits (beats 0,8,16,24 + accents) ───────────────
-        const bassBeats = theme === 'boss' ? [0,4,8,12,16,20,24,28] : [0,8,16,24];
-        if (bassBeats.includes(b)) {
-            const bassFreq = this._noteHz(theme === 'boss' ? 45 : 45); // A2
-            this._schedNote(t, bassFreq, 'sawtooth', 0.28, 0.55, dest);
-        }
-        // Sub-bass accent on 4 and 20 in boss mode
-        if (theme === 'boss' && (b === 4 || b === 20)) {
-            this._schedNote(t, this._noteHz(33), 'sine', 0.18, 0.4, dest); // A1
-        }
+        if (theme === 'normal') {
+            // ── NORMAL THEME: sparse ambient — bass every 16 beats, very soft chords,
+            //    NO melody arpeggio (that was the annoying part), minimal percussion ──
 
-        // ── CHORD STABS (every 4 beats, minor flavour) ───────────
-        const chordRoots = theme === 'boss'
-            ? [[57,60,64],[55,58,62],[59,62,65],[53,57,60]]   // Am Gm Bm Fm (tense)
-            : [[57,60,64],[64,67,71],[62,65,69],[60,64,67]];  // Am Em Dm Cm (dark)
-        if (b % 4 === 0) {
-            const chord = chordRoots[Math.floor(b / 8) % chordRoots.length];
-            chord.forEach((midi, i) => {
-                const f = this._noteHz(midi);
-                setTimeout(() => {
-                    if (!this.ctx) return;
-                    this._schedNote(t + i * 0.012, f, 'triangle', 0.10, 0.35, delay);
-                }, 0);
-            });
-        }
+            // Bass: only on beats 0 and 16 (every ~8 bars at 96bpm = 10s cycle)
+            if (b === 0 || b === 16) {
+                this._schedNote(t, this._noteHz(45), 'sine', 0.14, 1.2, dest); // A2 sine, long fade
+            }
 
-        // ── MELODY arpeggio ──────────────────────────────────────
-        // Plays on off-beats, uses higher pentatonic notes
-        const melPatNorm = [0,null,2,null,1,null,3,null, 4,null,2,null,0,null,1,null,
-                            3,null,1,null,4,null,2,null, 0,null,3,null,2,null,1,null];
-        const melPatBoss = [4,2,0,3,2,4,1,3, 0,4,2,1,3,0,4,2,
-                            1,3,0,4,2,3,1,0, 4,1,3,2,0,4,3,1];
-        const melPat  = theme === 'boss' ? melPatBoss : melPatNorm;
-        const noteIdx = melPat[b];
-        if (noteIdx !== null && b % 2 === 1) {
-            const oct  = theme === 'boss' ? penta4 : penta3;
-            const midi = oct[noteIdx % oct.length];
-            const f    = this._noteHz(midi + (theme === 'boss' ? 12 : 0));
-            this._schedNote(t, f, 'triangle', 0.055, 0.18, delay);
-        }
+            // Soft pad chord: every 8 beats, very low volume, long decay
+            const normChords = [[57,60,64],[62,65,69],[60,64,67],[55,59,62]]; // Am Dm Cm Gm
+            if (b % 8 === 0) {
+                const chord = normChords[Math.floor(b / 8) % normChords.length];
+                chord.forEach((midi, i) => {
+                    const f = this._noteHz(midi);
+                    this._schedNote(t + i * 0.04, f, 'triangle', 0.045, 1.8, delay);
+                });
+            }
 
-        // ── PERCUSSION (noise bursts) ────────────────────────────
-        if (b % 8 === 0 || b % 8 === 4) {
-            // Kick-like: pitched noise down
-            this._schedKick(t, theme === 'boss' ? 0.14 : 0.10, dest);
-        }
-        if (b % 4 === 2) {
-            // Snare-like: short filtered noise
-            this._schedSnare(t, theme === 'boss' ? 0.09 : 0.065, dest);
-        }
-        // Hi-hat on 16th notes every 2 beats in boss mode
-        if (theme === 'boss' && b % 2 === 1) {
-            this._schedHihat(t, 0.038, dest);
+            // Minimal kick: only on beat 0 every 16 beats
+            if (b === 0 || b === 16) this._schedKick(t, 0.055, dest);
+            // Very subtle snare: only every 16 beats
+            if (b === 8 || b === 24) this._schedSnare(t, 0.03, dest);
+
+        } else {
+            // ── BOSS THEME: intense, aggressive, full sequencer ──────
+
+            const bassBeats = [0,4,8,12,16,20,24,28];
+            if (bassBeats.includes(b)) {
+                this._schedNote(t, this._noteHz(45), 'sawtooth', 0.28, 0.55, dest);
+            }
+            if (b === 4 || b === 20) {
+                this._schedNote(t, this._noteHz(33), 'sine', 0.18, 0.4, dest);
+            }
+
+            const bossChords = [[57,60,64],[55,58,62],[59,62,65],[53,57,60]];
+            if (b % 4 === 0) {
+                const chord = bossChords[Math.floor(b / 8) % bossChords.length];
+                chord.forEach((midi, i) => {
+                    const f = this._noteHz(midi);
+                    setTimeout(() => {
+                        if (!this.ctx) return;
+                        this._schedNote(t + i * 0.012, f, 'triangle', 0.10, 0.35, delay);
+                    }, 0);
+                });
+            }
+
+            // Boss melody (aggressive arpeggio)
+            const melPatBoss = [4,2,0,3,2,4,1,3, 0,4,2,1,3,0,4,2,
+                                1,3,0,4,2,3,1,0, 4,1,3,2,0,4,3,1];
+            const noteIdx = melPatBoss[b];
+            if (noteIdx !== null && b % 2 === 1) {
+                const f = this._noteHz(penta4[noteIdx % penta4.length] + 12);
+                this._schedNote(t, f, 'triangle', 0.055, 0.18, delay);
+            }
+
+            if (b % 8 === 0 || b % 8 === 4) this._schedKick(t, 0.14, dest);
+            if (b % 4 === 2) this._schedSnare(t, 0.09, dest);
+            if (b % 2 === 1) this._schedHihat(t, 0.038, dest);
         }
     },
 

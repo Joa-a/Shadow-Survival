@@ -313,6 +313,17 @@ const Game = {
             if (btn) { btn.onclick = closeLB; }
         });
 
+        // Pause → settings button opens the existing options modal
+        const pauseSettingsBtn = document.getElementById('pause-settings-btn');
+        if (pauseSettingsBtn) {
+            const openOpts = () => {
+                const optModal = document.getElementById('options-modal');
+                if (optModal) optModal.style.display = 'flex';
+            };
+            pauseSettingsBtn.onclick = openOpts;
+            pauseSettingsBtn.ontouchend = e => { e.preventDefault(); openOpts(); };
+        }
+
         // Mode selector buttons
         document.querySelectorAll('.mode-btn').forEach(btn => {
             const select = () => {
@@ -742,6 +753,7 @@ const Game = {
         this.lastMinute       = 0;  this.combo             = 0;  this.comboTimer       = 0;
         this.shake            = 0;  this.powerUpTimer      = 0;  this.spawnTimer       = 0;
         this._canRevive       = true;  // one revive per run
+        this._reviveBossSnapshot = null;
         this.burstLevel       = 1;  this.burstCharges      = 1;  this.burstMaxCharges  = 1;
         this.burstMaxCooldown = 120; this.burstCooldown    = 0;  this.bossKills        = 0;
         this.hitstopFrames = 0; this.dmgFlash = 0;
@@ -818,29 +830,73 @@ const Game = {
 
     _applyRevive() {
         document.getElementById('gameover-screen').style.display = 'none';
-        this.state = 'PLAY';
         this.player.hp = Math.ceil(this.player.maxHp * 0.5);
 
-        // If a boss was active, teleport player to safe spot — never delete the boss
-        if (this.currentBoss && !this.currentBoss.dead) {
+        const snap = this._reviveBossSnapshot;
+        this._reviveBossSnapshot = null;
+
+        if (snap && snap.entity && !snap.entity.dead) {
+            // ── Boss was alive when player died — full boss-fight restore ──
+            const boss = snap.entity;
+
+            // Restore boss to enemies if it got removed somehow
+            if (!this.enemies.includes(boss)) this.enemies.push(boss);
+
+            // Keep currentBoss pointing to the live entity
+            this.currentBoss = boss;
+
+            // Restore arena so the fog wall is still valid
+            if (snap.arena) this.bossArena = snap.arena;
+
+            // Teleport player to a safe spot NEAR THE ARENA CENTER (not boss position)
+            // so they land inside the arena and the boss is visible on-screen
+            const arenaCenter = this.bossArena
+                ? { x: this.bossArena.x, y: this.bossArena.y }
+                : { x: boss.x, y: boss.y };
             const safeAng = Math.random() * Math.PI * 2;
-            this.player.x = this.currentBoss.x + Math.cos(safeAng) * 420;
-            this.player.y = this.currentBoss.y + Math.sin(safeAng) * 420;
-            if (!this.enemies.includes(this.currentBoss)) this.enemies.push(this.currentBoss);
+            const safeDist = 180; // close enough to see boss, far enough not to insta-die
+            this.player.x = arenaCenter.x + Math.cos(safeAng) * safeDist;
+            this.player.y = arenaCenter.y + Math.sin(safeAng) * safeDist;
+
+            // Remove only non-boss enemies close to the player
             this.enemies = this.enemies.filter(e => {
                 if (e.isBoss) return true;
                 const dx = e.x - this.player.x, dy = e.y - this.player.y;
-                return Math.sqrt(dx * dx + dy * dy) > 280;
+                return Math.sqrt(dx * dx + dy * dy) > 250;
             });
         } else {
+            // ── No boss, or boss died same frame — normal revive ──
             this.enemies = this.enemies.filter(e => {
                 const dx = e.x - this.player.x, dy = e.y - this.player.y;
                 return Math.sqrt(dx * dx + dy * dy) > 300;
             });
+            // If currentBoss is stale (dead entity still set), clear it properly
+            if (this.currentBoss && this.currentBoss.dead) {
+                // Process boss death rewards now so the player gets them
+                document.getElementById('boss-hud').style.display = 'none';
+                this.bossKills++;
+                Souls.add(15);
+                this.currentBoss = null;
+                this.bossArena = null;
+                AudioEngine.setBossTheme(false);
+                this.player.level++;
+                this.player.xp = 0;
+                const _xpMult = this.player.level < 5 ? 1.55 : this.player.level < 12 ? 1.35 : 1.20;
+                this.player.nextXp = Math.floor(this.player.nextXp * _xpMult);
+                // Don't heal to full — player just revived at 50%
+            }
         }
-        this.enemyProjectiles = [];
-        this.player.iframe = 1.2;
 
+        // Clear all enemy projectiles — fresh start
+        this.enemyProjectiles = [];
+        // 1.5s invincibility — enough to orient without being immortal
+        this.player.iframe = 1.5;
+
+        // Set state to PLAY last — after all state is correct
+        this.state = 'PLAY';
+        AudioEngine.startBgm(this.currentBoss ? 'boss' : 'normal');
+
+        // Revival burst
         for (let i = 0; i < 16; i++) {
             const a = (Math.PI * 2 / 16) * i;
             this.spawnParticle(this.player.x + Math.cos(a) * 40, this.player.y + Math.sin(a) * 40, '#88ffcc', 8);
@@ -1899,9 +1955,11 @@ const Game = {
                 if (e === this.currentBoss) this.shake = 20;
                 this.kills++; this.combo++; this.comboTimer = 2.8;
                 // Soul drop — 10% chance for normal, 30% for elite, boss always
+                // Soul drops: 1.5% normal, 4% elite, boss always +15
                 const soulRoll = Math.random();
-                if (soulRoll < 0.10) Souls.add(1);
-                else if (e.elite && soulRoll < 0.30) Souls.add(3);
+                if (e.isBoss) { /* boss souls handled below */ }
+                else if (e.elite && soulRoll < 0.04) Souls.add(2);
+                else if (!e.elite && soulRoll < 0.015) Souls.add(1);
                 const xpMult = (this.goldTimer > 0 ? 2 : 1) * (this.gameMode === 'frenetic' ? 1.5 : 1);
                 // Elites drop 5x XP (big gem), bosses handled below
                 const xpBonus  = this.player._xpBonus || 0;
@@ -2961,6 +3019,18 @@ const Game = {
         if (this.state === 'GAMEOVER') return;
         this.state = 'GAMEOVER';
         AudioEngine.stopBgm(1.5);  // fade out music on death
+
+        // ── Snapshot boss state NOW — before anything can mutate it ──
+        // currentBoss may change during the ~5s ad gap. Capture everything
+        // at the exact moment of death so _applyRevive() can restore it.
+        this._reviveBossSnapshot = null;
+        if (this.currentBoss && !this.currentBoss.dead) {
+            this._reviveBossSnapshot = {
+                entity: this.currentBoss,  // direct reference to live Enemy object
+                arena:  this.bossArena     // preserve arena reference too
+            };
+        }
+
         const m = Math.floor(this.time/60), s = Math.floor(this.time%60);
         const weapons = this.player.weapons.map(w => UPGRADES_DB[w.id]?.icon||'?').join(' ');
         // Build new-this-session highlights
