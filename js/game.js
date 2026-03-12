@@ -765,6 +765,14 @@ const Game = {
         this.lifeOrbs = []; this.goldTimer = 0;
         this._wisps = null;
         this.nextKillMilestone = 0;
+
+        // ── GEM POOL — pre-allocate 120 gem objects, reuse instead of new/splice ──
+        this._gemPool = Array.from({length: 120}, () => ({active:false, x:0, y:0, xp:0, tier:0}));
+        this._gemPoolIdx = 0; // round-robin cursor
+        // XP bucket: accumulate per-kill XP, emit 1 gem per 3 kills (3x fewer objects)
+        this._xpBucket    = 0;
+        this._xpBucketPos = {x:0, y:0};
+        this._xpBucketHits = 0;
         // Ultra/boss state reset
         this.bossArena       = null;  this.bossArenaAlpha = 0;
         this.bossSpawning    = null;
@@ -960,6 +968,39 @@ const Game = {
     },
 
     // ─────────────────────────── HELPERS ─────────────────────────
+
+    // Get a gem from the pool (round-robin reuse, never allocates after init)
+    _emitGem(x, y, xp, tier) {
+        const pool = this._gemPool;
+        const len  = pool.length;
+        for (let i = 0; i < len; i++) {
+            const idx = (this._gemPoolIdx + i) % len;
+            const g   = pool[idx];
+            if (!g.active) {
+                this._gemPoolIdx = (idx + 1) % len;
+                g.active = true; g.x = x; g.y = y; g.xp = xp; g.tier = tier || 0;
+                this.gems.push(g);
+                return g;
+            }
+        }
+        // Pool exhausted — evict the lowest-xp tier-0 gem in active set
+        const victim = this.gems.reduce((best, g) =>
+            (!g.tier && (!best || g.xp < best.xp)) ? g : best, null);
+        if (victim) {
+            victim.active = true; victim.x = x; victim.y = y; victim.xp = xp; victim.tier = tier || 0;
+            return victim;
+        }
+    },
+
+    // Flush accumulated XP bucket as a single gem
+    _flushXpBucket() {
+        if (this._xpBucket <= 0) return;
+        const tier = this._xpBucketHits >= 8 ? 2 : this._xpBucketHits >= 4 ? 1 : 0;
+        this._emitGem(this._xpBucketPos.x, this._xpBucketPos.y, this._xpBucket, tier);
+        this._xpBucket = 0;
+        this._xpBucketHits = 0;
+    },
+
     getClosestEnemy(x, y) {
         let closest = null, minDist = Infinity;
         for (const e of this.enemies) {
@@ -1167,7 +1208,7 @@ const Game = {
             ];
             const bd      = BOSS_DEFS[bossIdx];
             const hpMult  = (this.gameMode === 'frenetic' ? 1.4 : 1);
-            const bossHp  = (1200 + this.lastMinute * 400) * hpMult;
+            const bossHp  = (3000 + this.lastMinute * 700) * hpMult * (1 + this.bossKills * 0.2);
 
             // Despawn all regular enemies immediately
             this.enemies.forEach(en => { if (!en.isBoss) en.dead = true; });
@@ -1232,14 +1273,17 @@ const Game = {
     triggerLevelUp() {
         this.state = 'LEVELUP';
         AudioEngine.sfxLevel();
-        // Grant rerolls every 5 player levels
+        // Grant rerolls at level milestones (non-accumulating — handled in souls.js)
         Souls.grantRerollsForLevel(this.player.level);
         const flash = document.getElementById('flash');
         flash.style.transition = 'opacity 0s'; flash.style.opacity = '1';
         setTimeout(() => { flash.style.transition = 'opacity 0.18s'; flash.style.opacity = '0'; }, 80);
 
         document.getElementById('txt-levelup-num').textContent = `NIVEL ${this.player.level} — ELIGE UNA MEJORA`;
+        this._buildLevelUpOptions();
+    },
 
+    _buildLevelUpOptions() {
         const container = document.getElementById('upgrade-options');
         container.innerHTML = '';
         const evolvedBases = this.player._evolvedBaseWeapons || new Set();
@@ -1253,7 +1297,7 @@ const Game = {
             : [];
         const owned = allKeys.filter(k =>
             UPGRADES_DB[k].type === 'weapon' &&
-            !!this.player.weapons.find(w => w.id === k) &&
+            !!this.player.weapons.find(w => w.id === k && w.level < 7) && // max level 7
             !evolvedBases.has(k)
         );
         // #7/#8: Exclude stats that hit their cap
@@ -1316,7 +1360,7 @@ const Game = {
             div.addEventListener('touchend', e => { e.preventDefault(); apply(); });
             container.appendChild(div);
         });
-        // Re-roll button
+        // Re-roll button — fixed: separate onclick/ontouchend (mobile fires both → double charge)
         const rerollBtn = document.getElementById('btn-reroll');
         const rerollCount = document.getElementById('reroll-count');
         const updateRerollBtn = () => {
@@ -1328,12 +1372,14 @@ const Game = {
         };
         updateRerollBtn();
         if (rerollBtn) {
-            rerollBtn.onclick = rerollBtn.ontouchend = (e) => {
-                if (e.type === 'touchend') e.preventDefault();
+            const doReroll = () => {
                 if (!Souls.useReroll()) return;
                 AudioEngine.sfxPowerup && AudioEngine.sfxPowerup();
-                this.triggerLevelUp();
+                // Rebuild options WITHOUT re-granting (level hasn't changed)
+                this._buildLevelUpOptions();
             };
+            rerollBtn.onclick    = doReroll;
+            rerollBtn.ontouchend = e => { e.preventDefault(); doReroll(); };
         }
 
         document.getElementById('levelup-screen').style.display = 'flex';
@@ -1964,12 +2010,22 @@ const Game = {
                 // Elites drop 5x XP (big gem), bosses handled below
                 const xpBonus  = this.player._xpBonus || 0;
                 const xpAmount = e.xpValue * (e.elite ? 5 : 1) * xpMult + xpBonus;
-                const gemTier  = e.elite ? 2 : 0;   // elite gems are gold tier
-                this.gems.push({ x:e.x, y:e.y, xp: xpAmount, tier: gemTier });
+                const gemTier  = e.elite ? 2 : 0;
+                if (e.isBoss || e.elite) {
+                    // Bosses and elites always emit immediately as their own gem
+                    this._emitGem(e.x, e.y, xpAmount, gemTier);
+                } else {
+                    // Accumulate into bucket — emit 1 gem per 3 kills (3x fewer objects)
+                    this._xpBucket += xpAmount;
+                    this._xpBucketPos.x = e.x;
+                    this._xpBucketPos.y = e.y;
+                    this._xpBucketHits++;
+                    if (this._xpBucketHits % 3 === 0) this._flushXpBucket();
+                }
                 this.spawnParticle(e.x, e.y, e.color, e.isBoss?20:10);
                 AudioEngine.sfxKill();
-                // Life orb drop (2.5% chance, bosses always drop but heal less)
-                if (e.isBoss || Math.random() < 0.025)
+                // Life orb: 0.5% normal, boss always drops 1
+                if (e.isBoss || Math.random() < 0.005)
                     this.lifeOrbs.push({ x:e.x, y:e.y, hp: e.isBoss ? 10 : 8, r:10, pulse:0 });
                 if (Math.random() < 0.10) this.spawnPowerUp(e.x, e.y);
                 // Vampire
@@ -2138,10 +2194,10 @@ const Game = {
         // Runs every 6 frames to avoid per-frame overhead
         if (!this._gemMergeFrame) this._gemMergeFrame = 0;
         this._gemMergeFrame++;
-        if (this._gemMergeFrame % 8 === 0 && this.gems.length > 5) {
-            const MERGE_COUNT  = [5,    5   ];  // how many of tier N merge into tier N+1
-            const MERGE_RADIUS = [55,   85  ];  // max cluster radius per tier
-            const MAX_TIER     = 1;             // tier 2 = final, no further merging
+        if (this._gemMergeFrame % 4 === 0 && this.gems.length > 3) {
+            const MERGE_COUNT  = [4,    3   ];  // fewer needed to merge
+            const MERGE_RADIUS = [130,  180 ];  // much larger radius
+            const MAX_TIER     = 1;
 
             for (let tier = 0; tier <= MAX_TIER; tier++) {
                 const candidates = this.gems.filter(g => (g.tier || 0) === tier);
@@ -2172,11 +2228,10 @@ const Game = {
                         M.dist(g.x, g.y, cx, cy2) <= MERGE_RADIUS[tier]);
                     if (!allClose) continue;
 
-                    // Merge: sum all XP, place at centroid, bump tier
+                    // Merge: sum all XP, deactivate source gems, emit from pool
                     const totalXp = group.reduce((s, g) => s + g.xp, 0);
-                    group.forEach(g => toRemove.add(g));
-                    this.gems.push({ x: cx, y: cy2, xp: totalXp, tier: tier + 1 });
-                    // Brief flash at merge point
+                    group.forEach(g => { g.active = false; toRemove.add(g); });
+                    this._emitGem(cx, cy2, totalXp, tier + 1);
                     this.spawnParticle(cx, cy2, tier === 0 ? '#ffdd44' : '#ff8800', 5);
                 }
 
@@ -2185,16 +2240,15 @@ const Game = {
             }
         }
 
-        // Cap gems to prevent performance issues
-        if (this.gems.length > 200) {
-            // Keep highest tier gems, drop excess blues
+        // Cap gems — deactivate excess blues back to pool (keep higher tiers)
+        if (this.gems.length > 80) {
             this.gems.sort((a, b) => (b.tier||0) - (a.tier||0));
-            this.gems.splice(200);
+            for (let i = 80; i < this.gems.length; i++) this.gems[i].active = false;
+            this.gems.splice(80);
         }
         // XP gems
         const pickupRange  = this.gameMode === 'frenetic' ? this.player.pickupRange * 2.0 : this.player.pickupRange;
         const gemPullSpeed = this.gameMode === 'frenetic' ? 18 : 10;
-        // Cooldown so rapid gem pickups don't chain into back-to-back level-up screens
         if (this._levelupCooldown > 0) this._levelupCooldown -= dt;
 
         for (let i = this.gems.length - 1; i >= 0; i--) {
@@ -2207,6 +2261,8 @@ const Game = {
             if (d < 16) {
                 const xpGain = g.xp * (1 + this.combo * 0.015) * (this.gameMode === 'frenetic' ? 1.3 : 1);
                 this.player.xp += xpGain;
+                // Return gem to pool — no splice, just deactivate
+                g.active = false;
                 this.gems.splice(i, 1);
 
                 if (this.player.xp >= this.player.nextXp && this._levelupCooldown <= 0) {

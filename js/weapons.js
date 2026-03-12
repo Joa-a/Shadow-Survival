@@ -224,7 +224,6 @@ const WeaponFactory = {
 'MagicWand': class extends Weapon {
     constructor(p) { super(p, 'MagicWand', 15, 0.95); }
     update(dt) {
-        // Zale ultra: double fire rate
         const speedMult = (Game.zaleUltraTimer > 0) ? 2 : 1;
         this.timer -= dt * speedMult * (this.player.kaelUltraAttack > 0 ? 1.1 : 1);
         if (this.timer > 0 || !Game.enemies.length) return;
@@ -234,13 +233,28 @@ const WeaponFactory = {
             M.dist(this.player.x, this.player.y, b.x, b.y)
         );
         const n = Math.min(this.level, sorted.length);
-        for (let i = 0; i < n; i++) {
-            const ang = M.angle(this.player.x, this.player.y, sorted[i].x, sorted[i].y);
-            Game.projectiles.push({
-                type:'bolt', x:this.player.x, y:this.player.y,
-                vx:Math.cos(ang)*540, vy:Math.sin(ang)*540,
-                r:6, life:2, dmg:this.dmg, color:'#4466ff', weaponLevel:this.level
-            });
+        if (n === 1 && this.level > 1) {
+            // Solo hay 1 objetivo (boss) — disparar en abanico
+            const baseAng = M.angle(this.player.x, this.player.y, sorted[0].x, sorted[0].y);
+            const spread  = 0.28;
+            const half    = (this.level - 1) / 2;
+            for (let i = 0; i < this.level; i++) {
+                const ang = baseAng + (i - half) * spread;
+                Game.projectiles.push({
+                    type:'bolt', x:this.player.x, y:this.player.y,
+                    vx:Math.cos(ang)*540, vy:Math.sin(ang)*540,
+                    r:6, life:2, dmg:this.dmg, color:'#4466ff', weaponLevel:this.level
+                });
+            }
+        } else {
+            for (let i = 0; i < n; i++) {
+                const ang = M.angle(this.player.x, this.player.y, sorted[i].x, sorted[i].y);
+                Game.projectiles.push({
+                    type:'bolt', x:this.player.x, y:this.player.y,
+                    vx:Math.cos(ang)*540, vy:Math.sin(ang)*540,
+                    r:6, life:2, dmg:this.dmg, color:'#4466ff', weaponLevel:this.level
+                });
+            }
         }
     }
 },

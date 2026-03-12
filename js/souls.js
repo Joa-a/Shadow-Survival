@@ -168,12 +168,14 @@ const Souls = {
     // Run-time charges for current run
     _runRerolls: 0,
     initRunRerolls() {
-        this._runRerolls = 0; // start at 0, granted at level 5, 10, 15...
+        this._runRerolls = 0;
+        this._lastRerollLevel = -1; // track which level we already granted
     },
     grantRerollsForLevel(playerLevel) {
-        // Grant charges every 5 player levels
-        if (this.rerollLevel > 0 && playerLevel % 5 === 0) {
-            this._runRerolls += this.rerollLevel;
+        // Grant exactly once per level-5 milestone — NOT cumulative
+        if (this.rerollLevel > 0 && playerLevel % 5 === 0 && playerLevel !== this._lastRerollLevel) {
+            this._lastRerollLevel = playerLevel;
+            this._runRerolls = this.rerollLevel; // SET, not += (no stacking)
         }
     },
     useReroll() {

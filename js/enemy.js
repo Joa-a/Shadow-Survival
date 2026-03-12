@@ -236,41 +236,41 @@ class Enemy extends Entity {
         this.x += Math.cos(arcAng) * this.speed * dt;
         this.y += Math.sin(arcAng) * this.speed * dt;
 
-        const interval = 2.6;
+        const interval = 1.6; // was 2.6 — much faster attack rate
         if (this.patternTimer >= interval) {
             this.patternTimer = 0;
             this.patternPhase = (this.patternPhase + 1) % 4;
             const ph = this.patternPhase;
             if (ph === 0) {
-                // WEB BURST — 24 thin fast shots in ring
-                for (let i = 0; i < 24; i++) {
-                    const a = (Math.PI*2/24)*i;
-                    Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(a)*4.5, vy:Math.sin(a)*4.5, r:6, dmg:8, life:220, color:'#cc44ff' });
+                // WEB BURST — 30 fast shots in ring (was 24 at speed 4.5)
+                for (let i = 0; i < 30; i++) {
+                    const a = (Math.PI*2/30)*i;
+                    Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(a)*8, vy:Math.sin(a)*8, r:6, dmg:8, life:180, color:'#cc44ff' });
                 }
-                Game.shake = 10;
+                Game.shake = 12;
             } else if (ph === 1) {
-                // POISON SPIRAL — 3 rotating arms continuous
+                // POISON SPIRAL — faster arms (was speed 3.8)
                 for (let arm = 0; arm < 3; arm++) {
-                    for (let j = 0; j < 5; j++) {
-                        const a = this.spiralAngle + (Math.PI*2/3)*arm + j * 0.35;
-                        const delay = j * 80;
+                    for (let j = 0; j < 6; j++) {
+                        const a = this.spiralAngle + (Math.PI*2/3)*arm + j * 0.3;
+                        const delay = j * 55;
                         setTimeout(() => {
-                            if (!this.dead) Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(a)*3.8, vy:Math.sin(a)*3.8, r:7, dmg:7, life:240, color:'#aa22ff' });
+                            if (!this.dead) Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(a)*7, vy:Math.sin(a)*7, r:7, dmg:7, life:200, color:'#aa22ff' });
                         }, delay);
                     }
                 }
             } else if (ph === 2) {
-                // HOMING SPIDERS — 4 slow homing orbs
-                for (let i = 0; i < 4; i++) {
-                    const a = ang + (i - 1.5) * 0.5;
-                    const proj = { x:this.x, y:this.y, vx:Math.cos(a)*2, vy:Math.sin(a)*2, r:9, dmg:10, life:350, color:'#dd66ff', homing:true };
+                // HOMING SPIDERS — faster tracking orbs (was speed 2)
+                for (let i = 0; i < 5; i++) {
+                    const a = ang + (i - 2) * 0.45;
+                    const proj = { x:this.x, y:this.y, vx:Math.cos(a)*4, vy:Math.sin(a)*4, r:9, dmg:10, life:300, color:'#dd66ff', homing:true };
                     Game.enemyProjectiles.push(proj);
                 }
             } else {
-                // CLOSE WEB — dense ring that expands slowly
-                for (let i = 0; i < 12; i++) {
-                    const a = (Math.PI*2/12)*i + this.angle * 0.5;
-                    Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(a)*1.2, vy:Math.sin(a)*1.2, r:11, dmg:9, life:500, color:'#9900cc' });
+                // CLOSE WEB — dense ring, much faster expansion (was speed 1.2)
+                for (let i = 0; i < 16; i++) {
+                    const a = (Math.PI*2/16)*i + this.angle * 0.5;
+                    Game.enemyProjectiles.push({ x:this.x, y:this.y, vx:Math.cos(a)*3.5, vy:Math.sin(a)*3.5, r:11, dmg:9, life:350, color:'#9900cc' });
                 }
             }
         }
