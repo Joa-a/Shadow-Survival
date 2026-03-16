@@ -767,3 +767,26 @@
     border-color: #ffbb44;
     box-shadow: 0 0 12px rgba(255,180,0,0.3);
 }
+
+/* ── Admin panel ── */
+.admin-btn-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+}
+.admin-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px; letter-spacing: 1px;
+    background: linear-gradient(135deg, #2a0800, #1a0400);
+    border: 1px solid #cc4400;
+    color: #ff8844;
+    padding: 7px 10px; border-radius: 6px;
+    cursor: pointer; transition: all 0.15s;
+    flex: 1;
+}
+.admin-btn:hover, .admin-btn:active {
+    background: linear-gradient(135deg, #3a1400, #2a0800);
+    border-color: #ff6600;
+    box-shadow: 0 0 10px rgba(255,100,0,0.35);
+    color: #ffbb88;
+}

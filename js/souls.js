@@ -342,6 +342,7 @@ const SHOP_ITEMS = [
     { id:'skin_void',     type:'skin', name:'Vacío Violeta',   desc:'Oscuridad pura',            cost:300, color:'#aa44ff' },
     { id:'skin_ice',      type:'skin', name:'Tormenta Glacial',desc:'Azul hielo pulsante',       cost:500, color:'#44ddff' },
     { id:'skin_shadow',   type:'skin', name:'Sombra Eterna',   desc:'Gris ceniza espectral',     cost:800, color:'#888899' },
+    { id:'skin_alaric_golden', type:'skin', name:'Filo Dorado ⚔️', desc:'Espada negra con venas doradas. Alaric porta el Filo de la Luna.', cost:1000, color:'#1a1a00', special:'alaric_golden' },
 
     // Passives
     { id:'passive_hp',       type:'passive', icon:'❤️', name:'+12% Vida máx',   desc:'Empiezas cada partida con más vida',             cost:120 },

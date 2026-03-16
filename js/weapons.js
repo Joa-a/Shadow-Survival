@@ -125,7 +125,9 @@ const WeaponFactory = {
     draw(ctx, off) {
         if (!this.swingActive) return;
 
-        // Ease in-out so the whip has a snap-like feel
+        // With Filo Dorado skin, the sword sprite handles all visuals
+        const _skinId = (typeof Souls !== 'undefined') ? Souls.equippedSkin : 'default';
+        if (_skinId === 'skin_alaric_golden' && this.player.charData?.id === 'warrior') return;
         const raw  = this.swingPhase;
         const ease = raw < 0.5 ? 2*raw*raw : -1+(4-2*raw)*raw;
 

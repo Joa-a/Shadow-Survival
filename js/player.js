@@ -273,7 +273,77 @@ class Player extends Entity {
         ctx.save();
 
         if (false) {
-            // Alaric — no weapon visual
+            // placeholder
+        } else if (id === 'warrior') {
+            // ── ALARIC — Filo Dorado skin ────────────────────────────────────
+            const equippedSkin = (typeof Souls !== 'undefined') ? Souls.equippedSkin : 'default';
+            if (equippedSkin === 'skin_alaric_golden') {
+                const sp = (typeof AlaricSprites !== 'undefined') ? AlaricSprites : null;
+                if (sp && sp.ready) {
+                    const sw = sp.sword;
+                    const SWORD_LEN = r * 5.8;
+                    const SWORD_H   = SWORD_LEN * (473 / 493);
+                    const DX        = -0.892 * SWORD_LEN;
+                    const DY        = -0.106 * SWORD_H;
+                    const TIP_ALIGN = -2.369;
+
+                    const whip    = this.weapons.find(w => w.id === 'Whip');
+                    const isSwing = !!(whip && whip.swingActive);
+                    const prog    = isSwing ? whip.swingPhase : 0;
+
+                    // ── Swing rotation ─────────────────────────────────────
+                    // Idle:   espada quieta apuntando al enemigo
+                    // Ataque: barre el arco del látigo (swingAngle ± halfArc)
+                    //         la espada rota desde startAng hasta endAng
+                    let drawAng;
+                    if (isSwing && whip) {
+                        // ease-in-out: la espada arranca rápido y frena al final
+                        const ease = prog < 0.5
+                            ? 2 * prog * prog
+                            : -1 + (4 - 2 * prog) * prog;
+                        const halfArc = whip.swingArc / 2;
+                        // Sweep from (swingAngle - halfArc) to (swingAngle + halfArc)
+                        drawAng = whip.swingAngle + halfArc - whip.swingArc * ease;
+                    } else {
+                        drawAng = faceAng;
+                    }
+
+                    ctx.save();
+
+                    // ── Motion trail: ghost copies of the sword during swing ─
+                    if (isSwing) {
+                        const halfArc = whip.swingArc / 2;
+                        const trailSteps = 4;
+                        for (let i = 1; i <= trailSteps; i++) {
+                            const trailProg = Math.max(0, prog - i * 0.08);
+                            const trailEase = trailProg < 0.5
+                                ? 2 * trailProg * trailProg
+                                : -1 + (4 - 2 * trailProg) * trailProg;
+                            const trailAng = whip.swingAngle + halfArc - whip.swingArc * trailEase;
+                            const alpha    = (1 - i / (trailSteps + 1)) * 0.28 * Math.sin(prog * Math.PI);
+                            ctx.globalAlpha = alpha;
+                            ctx.shadowBlur  = 0;
+                            ctx.save();
+                            ctx.rotate(trailAng + TIP_ALIGN);
+                            ctx.drawImage(sw, DX, DY, SWORD_LEN, SWORD_H);
+                            ctx.restore();
+                        }
+                    }
+
+                    // ── Sword sprite ────────────────────────────────────────
+                    ctx.globalAlpha = 1;
+                    if (isSwing) {
+                        ctx.shadowColor = '#ffaa00';
+                        ctx.shadowBlur  = 14 * Math.sin(prog * Math.PI);
+                    } else {
+                        ctx.shadowBlur = 0;
+                    }
+                    ctx.rotate(drawAng + TIP_ALIGN);
+                    ctx.drawImage(sw, DX, DY, SWORD_LEN, SWORD_H);
+
+                    ctx.restore();
+                }
+            }
         } else if (id === 'mage') {
             // ── ZALE — Magic Wand ─────────────────────────────────
             // Staff held in front, orbiting arcane orb at tip

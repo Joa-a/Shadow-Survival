@@ -254,6 +254,7 @@
 <script src="js/weapons.js"></script>
 <script src="js/spatial.js"></script>
 <script src="js/intro.js"></script>
+<script src="js/alaric_sprites.js"></script>
 <script src="js/game.js"></script>
 
 <!-- SOULS SHOP -->
@@ -298,6 +299,24 @@
             <a class="options-donate-btn" href="https://paypal.me/JoaLDC" target="_blank" rel="noopener">DONAR</a>
         </div>
         <div class="options-divider"></div>
+
+        <!-- ADMIN PANEL — visible only for admin accounts -->
+        <div id="admin-panel" style="display:none;">
+            <div class="options-divider"></div>
+            <div class="options-title" style="font-size:11px;color:#cc4400;letter-spacing:3px;margin-bottom:8px;">🛠 ADMIN</div>
+            <div class="admin-btn-row">
+                <button class="admin-btn" id="admin-souls-1k">+1 000 💀</button>
+                <button class="admin-btn" id="admin-souls-10k">+10 000 💀</button>
+                <button class="admin-btn" id="admin-souls-max">MAX 💀</button>
+            </div>
+            <div class="admin-btn-row" style="margin-top:6px;">
+                <button class="admin-btn" id="admin-unlock-all">🔓 Todo</button>
+                <button class="admin-btn" id="admin-reset-souls">💣 Reset</button>
+            </div>
+            <div id="admin-feedback" style="font-size:9px;color:#ffaa44;text-align:center;min-height:14px;margin-top:4px;"></div>
+            <div class="options-divider"></div>
+        </div>
+
         <button class="options-logout-btn" onclick="document.getElementById('options-modal').style.display='none'; Auth.logout();">↩ CAMBIAR CUENTA</button>
     </div>
 </div>

@@ -173,6 +173,57 @@ const Game = {
         if (optSfx)   { optSfx.onclick   = () => { AudioEngine.setSfx(AudioEngine._sfxMuted); updateOptButtons(); }; }
         if (optMusic) { optMusic.onclick  = () => { AudioEngine.setMusic(AudioEngine._musicMuted); updateOptButtons(); }; }
 
+        // ── ADMIN PANEL — show when authenticated user is an admin ──
+        const ADMIN_NAMES = ['Joaldc', 'joaldc', 'admin', 'Admin', 'Dev', 'dev'];
+        const adminPanel = document.getElementById('admin-panel');
+        const adminFeedback = document.getElementById('admin-feedback');
+        const _showAdminFeedback = msg => {
+            if (!adminFeedback) return;
+            adminFeedback.textContent = msg;
+            setTimeout(() => { if (adminFeedback) adminFeedback.textContent = ''; }, 2000);
+        };
+        const _checkAdminVisibility = () => {
+            if (!adminPanel) return;
+            const name = Auth.currentUser?.name || '';
+            adminPanel.style.display = ADMIN_NAMES.includes(name) ? 'block' : 'none';
+        };
+        _checkAdminVisibility();
+        // Re-check when options modal opens (login state may have changed)
+        if (optBtn) {
+            const _origClick = optBtn.onclick;
+            optBtn.onclick = () => { _checkAdminVisibility(); if (_origClick) _origClick(); };
+        }
+
+        const adminBtn1k  = document.getElementById('admin-souls-1k');
+        const adminBtn10k = document.getElementById('admin-souls-10k');
+        const adminBtnMax = document.getElementById('admin-souls-max');
+        const adminUnlock = document.getElementById('admin-unlock-all');
+        const adminReset  = document.getElementById('admin-reset-souls');
+
+        if (adminBtn1k)  adminBtn1k.onclick  = () => { Souls.add(1000);  _showAdminFeedback(`+1 000 almas → ${Souls.total}`); };
+        if (adminBtn10k) adminBtn10k.onclick = () => { Souls.add(10000); _showAdminFeedback(`+10 000 almas → ${Souls.total}`); };
+        if (adminBtnMax) adminBtnMax.onclick = () => { Souls.add(999999);_showAdminFeedback(`MAX → ${Souls.total}`); };
+        if (adminUnlock) adminUnlock.onclick = () => {
+            const all = typeof SHOP_ITEMS !== 'undefined' ? SHOP_ITEMS : [];
+            all.forEach(item => {
+                // Force-add to owned without cost check
+                const o = Souls.owned;
+                if (!o.includes(item.id)) { o.push(item.id); Souls._confirmed.owned = o; }
+                if (item.type === 'character') {
+                    const ch = Souls.unlockedChars;
+                    if (!ch.includes(item.id)) { ch.push(item.id); Souls.unlockedChars = ch; }
+                }
+            });
+            Souls._scheduleSave();
+            _showAdminFeedback('✅ Todo desbloqueado');
+        };
+        if (adminReset)  adminReset.onclick  = () => {
+            if (confirm('¿Resetear todas las almas? Esto no se puede deshacer.')) {
+                Souls._confirmed.total = 0; Souls._scheduleSave();
+                _showAdminFeedback('💀 Almas reseteadas a 0');
+            }
+        };
+
         // Shop button
         const shopBtn = document.getElementById('btn-open-shop');
         if (shopBtn) {
@@ -2277,7 +2328,6 @@ const Game = {
                 }
             }
         }
-
         // Particles
         for (const p of this.particles) {
             p.vy += p.gravity; p.vx *= p.friction; p.vy *= p.friction;
@@ -2794,62 +2844,103 @@ const Game = {
                 const px = this.player.x, py = this.player.y;
                 const sx = px - off.x + Game.lw/2;
                 const sy = py - off.y + Game.lh/2;
-                const raw    = w.phase;
-                const ease   = raw < 0.5 ? 2*raw*raw : -1+(4-2*raw)*raw;
-                const halfArc  = w.arc / 2;
-                const startAng = w.angle - halfArc;
-                const currAng  = startAng + w.arc * ease;
-                const fadeOut  = Math.max(0, 1 - raw * 1.4);
+                const raw     = w.phase;
+                const ease    = raw < 0.5 ? 2*raw*raw : -1+(4-2*raw)*raw;
+                const fadeOut = Math.max(0, 1 - raw * 1.4);
+                const currAng = w.angle;   // each ultraWhip fires at its own angle
+
+                const useSkin = (typeof Souls !== 'undefined') &&
+                    Souls.equippedSkin === 'skin_alaric_golden' &&
+                    this.player.charData?.id === 'warrior';
 
                 ctx.save();
                 ctx.translate(sx, sy);
 
-                // Ghost arc trail
-                ctx.globalAlpha = 0.18 * fadeOut;
-                ctx.fillStyle   = '#ff88cc';
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.arc(0, 0, w.len, startAng, currAng);
-                ctx.closePath(); ctx.fill();
+                if (useSkin) {
+                    // ── ESPADAS VOLANDO HACIA AFUERA ───────────────────────
+                    const sp = (typeof AlaricSprites !== 'undefined') ? AlaricSprites : null;
+                    if (sp && sp.ready) {
+                        const sw = sp.sword;
+                        // Sword flies from player center outward along currAng.
+                        // Position along the travel path = ease * w.len
+                        const dist    = ease * w.len;
+                        const SLEN    = w.len * 0.55;  // sword display length
+                        const SH      = SLEN * (473 / 493);
+                        const TIP_ALIGN = -2.369;
 
-                // Whip body — tapered bezier from base to tip
-                const tipX = Math.cos(currAng) * w.len;
-                const tipY = Math.sin(currAng) * w.len;
-                const midX = Math.cos(currAng - halfArc * 0.5) * w.len * 0.5;
-                const midY = Math.sin(currAng - halfArc * 0.5) * w.len * 0.5;
+                        // Trail — dark streak behind the sword
+                        ctx.globalAlpha = fadeOut * 0.45;
+                        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+                        ctx.lineWidth   = SLEN * 0.06;
+                        ctx.lineCap     = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        ctx.lineTo(Math.cos(currAng) * dist, Math.sin(currAng) * dist);
+                        ctx.stroke();
 
-                for (let seg = 6; seg >= 1; seg--) {
-                    const t1 = (seg - 1) / 6, t2 = seg / 6;
-                    const thick = (1 - t1) * 5.5 + 0.5;
+                        // Gold trail
+                        ctx.globalAlpha = fadeOut * 0.35;
+                        ctx.strokeStyle = '#ffcc00';
+                        ctx.shadowColor = '#ffaa00';
+                        ctx.shadowBlur  = 10;
+                        ctx.lineWidth   = SLEN * 0.03;
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        ctx.lineTo(Math.cos(currAng) * dist, Math.sin(currAng) * dist);
+                        ctx.stroke();
+
+                        // Sword sprite at current travel position
+                        ctx.globalAlpha = fadeOut;
+                        ctx.shadowBlur  = 0;
+                        ctx.save();
+                        ctx.translate(Math.cos(currAng) * dist, Math.sin(currAng) * dist);
+                        ctx.rotate(currAng + TIP_ALIGN);  // tip → direction of travel
+                        ctx.drawImage(sw, -0.892*SLEN, -0.106*SH, SLEN, SH);
+                        ctx.restore();
+                    }
+                } else {
+                    // ── ORIGINAL WHIP ULTRA ─────────────────────────────────
+                    const halfArc  = w.arc / 2;
+                    const startAng = w.angle - halfArc;
+                    const swingAng = startAng + w.arc * ease;
+                    const tipX = Math.cos(swingAng) * w.len;
+                    const tipY = Math.sin(swingAng) * w.len;
+                    const midX = Math.cos(swingAng - halfArc * 0.5) * w.len * 0.5;
+                    const midY = Math.sin(swingAng - halfArc * 0.5) * w.len * 0.5;
+
+                    ctx.globalAlpha = 0.18 * fadeOut;
+                    ctx.fillStyle   = '#ff88cc';
                     ctx.beginPath();
-                    ctx.moveTo(midX*t1*2, midY*t1*2);
-                    ctx.lineTo(midX*t2*2, midY*t2*2);
-                    ctx.strokeStyle = `rgba(255,120,200,${fadeOut * (0.5 + t1*0.5)})`;
-                    ctx.lineWidth   = thick;
-                    ctx.shadowColor = '#ff44aa';
-                    ctx.shadowBlur  = 12 * fadeOut;
+                    ctx.moveTo(0, 0);
+                    ctx.arc(0, 0, w.len, startAng, swingAng);
+                    ctx.closePath(); ctx.fill();
+
+                    for (let seg = 6; seg >= 1; seg--) {
+                        const t1 = (seg - 1) / 6, t2 = seg / 6;
+                        ctx.beginPath();
+                        ctx.moveTo(midX*t1*2, midY*t1*2);
+                        ctx.lineTo(midX*t2*2, midY*t2*2);
+                        ctx.strokeStyle = `rgba(255,120,200,${fadeOut * (0.5 + t1*0.5)})`;
+                        ctx.lineWidth   = (1 - t1) * 5.5 + 0.5;
+                        ctx.shadowColor = '#ff44aa';
+                        ctx.shadowBlur  = 12 * fadeOut;
+                        ctx.stroke();
+                    }
+                    ctx.beginPath();
+                    ctx.moveTo(midX, midY);
+                    ctx.quadraticCurveTo(Math.cos(swingAng)*w.len*0.75, Math.sin(swingAng)*w.len*0.75, tipX, tipY);
+                    ctx.strokeStyle = `rgba(255,180,230,${fadeOut * 0.9})`;
+                    ctx.lineWidth   = 2;
+                    ctx.shadowColor = '#ff88cc';
+                    ctx.shadowBlur  = 18 * fadeOut;
                     ctx.stroke();
+
+                    ctx.globalAlpha = fadeOut * 0.9;
+                    ctx.fillStyle   = '#ffffff';
+                    ctx.shadowColor = '#ff44aa';
+                    ctx.shadowBlur  = 20;
+                    ctx.beginPath(); ctx.arc(tipX, tipY, 5, 0, Math.PI*2); ctx.fill();
                 }
-
-                // Outer whip segment (mid to tip)
-                ctx.beginPath();
-                ctx.moveTo(midX, midY);
-                ctx.quadraticCurveTo(
-                    Math.cos(currAng)*w.len*0.75, Math.sin(currAng)*w.len*0.75,
-                    tipX, tipY
-                );
-                ctx.strokeStyle = `rgba(255,180,230,${fadeOut * 0.9})`;
-                ctx.lineWidth   = 2;
-                ctx.shadowColor = '#ff88cc';
-                ctx.shadowBlur  = 18 * fadeOut;
-                ctx.stroke();
-
-                // Tip spark
-                ctx.globalAlpha = fadeOut * 0.9;
-                ctx.fillStyle   = '#ffffff';
-                ctx.shadowColor = '#ff44aa';
-                ctx.shadowBlur  = 20;
-                ctx.beginPath(); ctx.arc(tipX, tipY, 5, 0, Math.PI*2); ctx.fill();
 
                 ctx.restore();
             });
