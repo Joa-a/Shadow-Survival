@@ -174,7 +174,7 @@ const Game = {
         if (optMusic) { optMusic.onclick  = () => { AudioEngine.setMusic(AudioEngine._musicMuted); updateOptButtons(); }; }
 
         // ── ADMIN PANEL — show when authenticated user is an admin ──
-        const ADMIN_NAMES = ['Joaldc', 'joaldc', 'admin', 'Admin', 'Dev', 'dev'];
+        const ADMIN_NAMES = ['Joaldc', 'Max'];
         const adminPanel = document.getElementById('admin-panel');
         const adminFeedback = document.getElementById('admin-feedback');
         const _showAdminFeedback = msg => {
