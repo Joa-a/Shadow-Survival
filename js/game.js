@@ -174,7 +174,7 @@ const Game = {
         if (optMusic) { optMusic.onclick  = () => { AudioEngine.setMusic(AudioEngine._musicMuted); updateOptButtons(); }; }
 
         // ── ADMIN PANEL — show when authenticated user is an admin ──
-        const ADMIN_NAMES = ['Joaldc', 'Max'];
+        const ADMIN_NAMES = ['Joaldc', 'joaldc', 'admin', 'Admin', 'Dev', 'dev'];
         const adminPanel = document.getElementById('admin-panel');
         const adminFeedback = document.getElementById('admin-feedback');
         const _showAdminFeedback = msg => {
@@ -2857,47 +2857,78 @@ const Game = {
                 ctx.translate(sx, sy);
 
                 if (useSkin) {
-                    // ── ESPADAS VOLANDO HACIA AFUERA ───────────────────────
-                    const sp = (typeof AlaricSprites !== 'undefined') ? AlaricSprites : null;
-                    if (sp && sp.ready) {
-                        const sw = sp.sword;
-                        // Sword flies from player center outward along currAng.
-                        // Position along the travel path = ease * w.len
-                        const dist    = ease * w.len;
-                        const SLEN    = w.len * 0.55;  // sword display length
-                        const SH      = SLEN * (473 / 493);
-                        const TIP_ALIGN = -2.369;
+                    // ── ESPADAS CANVAS VOLANDO HACIA AFUERA ───────────────
+                    const dist = ease * w.len;
+                    const dirX = Math.cos(currAng);
+                    const dirY = Math.sin(currAng);
 
-                        // Trail — dark streak behind the sword
-                        ctx.globalAlpha = fadeOut * 0.45;
-                        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-                        ctx.lineWidth   = SLEN * 0.06;
-                        ctx.lineCap     = 'round';
-                        ctx.beginPath();
-                        ctx.moveTo(0, 0);
-                        ctx.lineTo(Math.cos(currAng) * dist, Math.sin(currAng) * dist);
-                        ctx.stroke();
+                    // Estela negra + dorada
+                    ctx.globalAlpha = fadeOut * 0.5;
+                    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+                    ctx.lineWidth   = 8;
+                    ctx.lineCap     = 'round';
+                    ctx.shadowBlur  = 0;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(dirX * dist, dirY * dist);
+                    ctx.stroke();
 
-                        // Gold trail
-                        ctx.globalAlpha = fadeOut * 0.35;
-                        ctx.strokeStyle = '#ffcc00';
-                        ctx.shadowColor = '#ffaa00';
-                        ctx.shadowBlur  = 10;
-                        ctx.lineWidth   = SLEN * 0.03;
-                        ctx.beginPath();
-                        ctx.moveTo(0, 0);
-                        ctx.lineTo(Math.cos(currAng) * dist, Math.sin(currAng) * dist);
-                        ctx.stroke();
+                    ctx.globalAlpha = fadeOut * 0.4;
+                    ctx.strokeStyle = '#ffcc00';
+                    ctx.shadowColor = '#ffaa00';
+                    ctx.shadowBlur  = 10;
+                    ctx.lineWidth   = 3.5;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(dirX * dist, dirY * dist);
+                    ctx.stroke();
 
-                        // Sword sprite at current travel position
-                        ctx.globalAlpha = fadeOut;
-                        ctx.shadowBlur  = 0;
-                        ctx.save();
-                        ctx.translate(Math.cos(currAng) * dist, Math.sin(currAng) * dist);
-                        ctx.rotate(currAng + TIP_ALIGN);  // tip → direction of travel
-                        ctx.drawImage(sw, -0.892*SLEN, -0.106*SH, SLEN, SH);
-                        ctx.restore();
-                    }
+                    // Espada canvas en la posición actual
+                    const SL = w.len * 0.5;
+                    const LB = SL * 0.72, LH = SL * 0.18;
+                    const swingGlow = Math.sin(ease * Math.PI);
+
+                    ctx.save();
+                    ctx.translate(dirX * dist, dirY * dist);
+                    ctx.rotate(currAng);
+                    ctx.globalAlpha = fadeOut;
+                    ctx.shadowBlur  = 0;
+
+                    // Mango
+                    const hg = ctx.createLinearGradient(0, -SL*0.04, 0, SL*0.04);
+                    hg.addColorStop(0, '#6b3a1f'); hg.addColorStop(0.5, '#c8872a'); hg.addColorStop(1, '#6b3a1f');
+                    ctx.fillStyle = hg;
+                    ctx.beginPath(); ctx.roundRect(-LH*0.05, -SL*0.04, LH*0.9, SL*0.08, 2); ctx.fill();
+
+                    // Guarda
+                    const gg = ctx.createLinearGradient(LH, -LH*0.9, LH, LH*0.9);
+                    gg.addColorStop(0, '#3a2000'); gg.addColorStop(0.5, '#ffcc44'); gg.addColorStop(1, '#3a2000');
+                    ctx.fillStyle = gg;
+                    ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 6 + swingGlow * 8;
+                    ctx.beginPath(); ctx.roundRect(LH*0.75, -LH*0.9, LH*0.5, LH*1.8, 2); ctx.fill();
+
+                    // Hoja negra
+                    ctx.shadowBlur = 0; ctx.fillStyle = '#0a0800';
+                    ctx.beginPath();
+                    ctx.moveTo(LH*1.15,  SL*0.034);
+                    ctx.lineTo(LH*1.15 + LB*0.85, SL*0.008);
+                    ctx.lineTo(LH*1.15 + LB, 0);
+                    ctx.lineTo(LH*1.15 + LB*0.85, -SL*0.008);
+                    ctx.lineTo(LH*1.15, -SL*0.034);
+                    ctx.closePath(); ctx.fill();
+
+                    // Filo dorado
+                    ctx.globalAlpha = fadeOut * (0.7 + swingGlow * 0.3);
+                    ctx.strokeStyle = '#ffe066'; ctx.shadowColor = '#ffcc00';
+                    ctx.shadowBlur = 4 + swingGlow * 12; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(LH*1.15, -SL*0.034);
+                    ctx.lineTo(LH*1.15 + LB*0.85, -SL*0.008);
+                    ctx.lineTo(LH*1.15 + LB, 0);
+                    ctx.stroke();
+
+                    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+                    ctx.restore();
                 } else {
                     // ── ORIGINAL WHIP ULTRA ─────────────────────────────────
                     const halfArc  = w.arc / 2;

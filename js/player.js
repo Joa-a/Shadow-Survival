@@ -275,74 +275,159 @@ class Player extends Entity {
         if (false) {
             // placeholder
         } else if (id === 'warrior') {
-            // ── ALARIC — Filo Dorado skin ────────────────────────────────────
+            // ── ALARIC — Filo Dorado skin — espada canvas (nítida, sin sprites) ─
             const equippedSkin = (typeof Souls !== 'undefined') ? Souls.equippedSkin : 'default';
             if (equippedSkin === 'skin_alaric_golden') {
-                const sp = (typeof AlaricSprites !== 'undefined') ? AlaricSprites : null;
-                if (sp && sp.ready) {
-                    const sw = sp.sword;
-                    const SWORD_LEN = r * 5.8;
-                    const SWORD_H   = SWORD_LEN * (473 / 493);
-                    const DX        = -0.892 * SWORD_LEN;
-                    const DY        = -0.106 * SWORD_H;
-                    const TIP_ALIGN = -2.369;
+                const whip    = this.weapons.find(w => w.id === 'Whip');
+                const isSwing = !!(whip && whip.swingActive);
+                const prog    = isSwing ? whip.swingPhase : 0;
 
-                    const whip    = this.weapons.find(w => w.id === 'Whip');
-                    const isSwing = !!(whip && whip.swingActive);
-                    const prog    = isSwing ? whip.swingPhase : 0;
+                // ease-in-out: arranca rápido, frena al final
+                const ease = prog < 0.5
+                    ? 2 * prog * prog
+                    : -1 + (4 - 2 * prog) * prog;
 
-                    // ── Swing rotation ─────────────────────────────────────
-                    // Idle:   espada quieta apuntando al enemigo
-                    // Ataque: barre el arco del látigo (swingAngle ± halfArc)
-                    //         la espada rota desde startAng hasta endAng
-                    let drawAng;
-                    if (isSwing && whip) {
-                        // ease-in-out: la espada arranca rápido y frena al final
-                        const ease = prog < 0.5
-                            ? 2 * prog * prog
-                            : -1 + (4 - 2 * prog) * prog;
-                        const halfArc = whip.swingArc / 2;
-                        // Sweep from (swingAngle - halfArc) to (swingAngle + halfArc)
-                        drawAng = whip.swingAngle + halfArc - whip.swingArc * ease;
-                    } else {
-                        drawAng = faceAng;
-                    }
-
-                    ctx.save();
-
-                    // ── Motion trail: ghost copies of the sword during swing ─
-                    if (isSwing) {
-                        const halfArc = whip.swingArc / 2;
-                        const trailSteps = 4;
-                        for (let i = 1; i <= trailSteps; i++) {
-                            const trailProg = Math.max(0, prog - i * 0.08);
-                            const trailEase = trailProg < 0.5
-                                ? 2 * trailProg * trailProg
-                                : -1 + (4 - 2 * trailProg) * trailProg;
-                            const trailAng = whip.swingAngle + halfArc - whip.swingArc * trailEase;
-                            const alpha    = (1 - i / (trailSteps + 1)) * 0.28 * Math.sin(prog * Math.PI);
-                            ctx.globalAlpha = alpha;
-                            ctx.shadowBlur  = 0;
-                            ctx.save();
-                            ctx.rotate(trailAng + TIP_ALIGN);
-                            ctx.drawImage(sw, DX, DY, SWORD_LEN, SWORD_H);
-                            ctx.restore();
-                        }
-                    }
-
-                    // ── Sword sprite ────────────────────────────────────────
-                    ctx.globalAlpha = 1;
-                    if (isSwing) {
-                        ctx.shadowColor = '#ffaa00';
-                        ctx.shadowBlur  = 14 * Math.sin(prog * Math.PI);
-                    } else {
-                        ctx.shadowBlur = 0;
-                    }
-                    ctx.rotate(drawAng + TIP_ALIGN);
-                    ctx.drawImage(sw, DX, DY, SWORD_LEN, SWORD_H);
-
-                    ctx.restore();
+                // Ángulo actual: idle apunta al enemigo,
+                // swing barre desde +halfArc hasta -halfArc (curva de la punta)
+                let drawAng;
+                if (isSwing && whip) {
+                    const halfArc = whip.swingArc / 2;
+                    drawAng = whip.swingAngle + halfArc - whip.swingArc * ease;
+                } else {
+                    drawAng = faceAng;
                 }
+
+                const L  = r * 5.2;    // longitud total de la espada
+                const LB = L * 0.72;   // longitud de la hoja (blade)
+                const LH = L * 0.18;   // longitud del mango (hilt)
+                const LG = L * 0.10;   // guarda (crossguard)
+
+                // ── Rastro de movimiento (3 fantasmas) ──────────────────
+                if (isSwing && whip) {
+                    const halfArc = whip.swingArc / 2;
+                    for (let gi = 3; gi >= 1; gi--) {
+                        const gp  = Math.max(0, prog - gi * 0.07);
+                        const ge  = gp < 0.5 ? 2*gp*gp : -1+(4-2*gp)*gp;
+                        const ga  = whip.swingAngle + halfArc - whip.swingArc * ge;
+                        const alf = (1 - gi / 4) * 0.22 * Math.sin(prog * Math.PI);
+
+                        ctx.save();
+                        ctx.rotate(ga);
+                        ctx.globalAlpha = alf;
+
+                        // Hoja fantasma (solo el trazo dorado)
+                        ctx.strokeStyle = '#ffcc00';
+                        ctx.lineWidth   = 2.5;
+                        ctx.lineCap     = 'round';
+                        ctx.shadowBlur  = 0;
+                        ctx.beginPath();
+                        ctx.moveTo(LH * 0.3, 0);
+                        ctx.lineTo(LH * 0.3 + LB * 0.9, -LB * 0.04);
+                        ctx.stroke();
+
+                        ctx.restore();
+                    }
+                }
+
+                // ── Espada principal ─────────────────────────────────────
+                ctx.save();
+                ctx.rotate(drawAng);
+
+                const swingGlow = isSwing ? Math.sin(prog * Math.PI) : 0;
+
+                // 1. MANGO — rectángulo con degradado marrón-dorado
+                const hiltGrad = ctx.createLinearGradient(0, -r*0.25, 0, r*0.25);
+                hiltGrad.addColorStop(0,   '#6b3a1f');
+                hiltGrad.addColorStop(0.4, '#c8872a');
+                hiltGrad.addColorStop(1,   '#6b3a1f');
+                ctx.fillStyle   = hiltGrad;
+                ctx.shadowBlur  = 0;
+                ctx.beginPath();
+                ctx.roundRect(-LH * 0.05, -r * 0.22, LH * 0.9, r * 0.44, 3);
+                ctx.fill();
+
+                // Envoltorio del mango (líneas)
+                ctx.strokeStyle = '#3a1a00';
+                ctx.lineWidth   = 1.2;
+                ctx.globalAlpha = 0.7;
+                for (let wi2 = 0; wi2 < 4; wi2++) {
+                    const wx = LH * 0.15 + wi2 * LH * 0.18;
+                    ctx.beginPath();
+                    ctx.moveTo(wx, -r * 0.22);
+                    ctx.lineTo(wx,  r * 0.22);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+
+                // 2. GUARDA — barra perpendicular dorada
+                const guardGrad = ctx.createLinearGradient(LH, -LG * 1.6, LH, LG * 1.6);
+                guardGrad.addColorStop(0,   '#3a2000');
+                guardGrad.addColorStop(0.35,'#ffcc44');
+                guardGrad.addColorStop(0.65,'#ffcc44');
+                guardGrad.addColorStop(1,   '#3a2000');
+                ctx.fillStyle   = guardGrad;
+                ctx.shadowColor = '#ffaa00';
+                ctx.shadowBlur  = 6 + swingGlow * 8;
+                ctx.beginPath();
+                ctx.roundRect(LH * 0.75, -LG * 1.6, LH * 0.5, LG * 3.2, 2);
+                ctx.fill();
+
+                // 3. HOJA — forma trapezoidal negra con borde dorado
+                // Cuerpo negro de la hoja
+                ctx.shadowBlur  = 0;
+                ctx.fillStyle   = '#0a0800';
+                ctx.beginPath();
+                ctx.moveTo(LH * 1.15,  r * 0.18);   // base ancha (hilt-side)
+                ctx.lineTo(LH * 1.15 + LB * 0.85, r * 0.04); // taper
+                ctx.lineTo(LH * 1.15 + LB,        0);          // tip
+                ctx.lineTo(LH * 1.15 + LB * 0.85, -r * 0.04);
+                ctx.lineTo(LH * 1.15,  -r * 0.18);
+                ctx.closePath();
+                ctx.fill();
+
+                // Borde superior (filo) — línea dorada brillante
+                const edgeAlpha = 0.6 + swingGlow * 0.35;
+                ctx.globalAlpha = edgeAlpha;
+                ctx.strokeStyle = '#ffe066';
+                ctx.shadowColor = '#ffcc00';
+                ctx.shadowBlur  = 4 + swingGlow * 14;
+                ctx.lineWidth   = 1.8;
+                ctx.lineCap     = 'round';
+                ctx.beginPath();
+                ctx.moveTo(LH * 1.15, -r * 0.18);
+                ctx.lineTo(LH * 1.15 + LB * 0.85, -r * 0.04);
+                ctx.lineTo(LH * 1.15 + LB, 0);
+                ctx.stroke();
+
+                // Vena dorada central (grieta del arma)
+                ctx.globalAlpha = 0.45 + swingGlow * 0.4;
+                ctx.strokeStyle = '#ffcc00';
+                ctx.shadowColor = '#ffdd44';
+                ctx.shadowBlur  = 3 + swingGlow * 10;
+                ctx.lineWidth   = 1.0;
+                ctx.beginPath();
+                ctx.moveTo(LH * 1.3,  r * 0.06);
+                ctx.bezierCurveTo(
+                    LH * 1.3 + LB * 0.3,  r * 0.02,
+                    LH * 1.3 + LB * 0.65, -r * 0.02,
+                    LH * 1.3 + LB * 0.9,  0
+                );
+                ctx.stroke();
+
+                // 4. PUNTA — punto de luz al atacar
+                if (isSwing) {
+                    ctx.globalAlpha = swingGlow * 0.9;
+                    ctx.fillStyle   = '#ffffff';
+                    ctx.shadowColor = '#ffcc00';
+                    ctx.shadowBlur  = 18;
+                    ctx.beginPath();
+                    ctx.arc(LH * 1.15 + LB, 0, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur  = 0;
+                ctx.restore();
             }
         } else if (id === 'mage') {
             // ── ZALE — Magic Wand ─────────────────────────────────
