@@ -790,3 +790,30 @@
     box-shadow: 0 0 10px rgba(255,100,0,0.35);
     color: #ffbb88;
 }
+
+/* ── Dual buy (souls + PayPal) ── */
+.shop-dual-buy {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.shop-btn-paypal {
+    display: inline-block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 1px;
+    background: linear-gradient(135deg, #003087, #009cde);
+    border: 1px solid #009cde;
+    color: #ffffff;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+    text-align: center;
+}
+.shop-btn-paypal:hover, .shop-btn-paypal:active {
+    background: linear-gradient(135deg, #00409c, #00b5f5);
+    box-shadow: 0 0 10px rgba(0,180,255,0.4);
+}

@@ -224,24 +224,293 @@ class Player extends Entity {
 
         // Body — skin color from shop or default
         const _sc = this._skinColor || '#ddeeff';
-        ctx.globalAlpha = 1;
-        ctx.fillStyle   = _sc;
-        ctx.shadowColor = _sc; ctx.shadowBlur = CONFIG.IS_MOBILE ? 10 : 22;
-        ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI * 2); ctx.fill();
-        // Inner highlight
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(-this.r*0.25, -this.r*0.25, this.r*0.35, 0, Math.PI*2); ctx.fill();
+        const _equippedSkin = (typeof Souls !== 'undefined') ? Souls.equippedSkin : 'default';
+        const _isEspectro   = _equippedSkin === 'skin_espectro' && this.charData.id === 'warrior';
+        const _isArcano     = _equippedSkin === 'skin_arcano'   && this.charData.id === 'mage';
+        const _t = Date.now() * 0.001;
 
-        // Character icon
-        ctx.font = (this.r * 0.9) + 'px serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.fillText(this.charData.icon, 0, 1);
+        if (_isEspectro) {
+            this._drawEspectro(ctx, _t);
+        } else if (_isArcano) {
+            this._drawArcano(ctx, _t);
+        } else {
+            ctx.globalAlpha = 1;
+            ctx.fillStyle   = _sc;
+            ctx.shadowColor = _sc; ctx.shadowBlur = CONFIG.IS_MOBILE ? 10 : 22;
+            ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI * 2); ctx.fill();
+            // Inner highlight
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(-this.r*0.25, -this.r*0.25, this.r*0.35, 0, Math.PI*2); ctx.fill();
+
+            // Character icon
+            ctx.font = (this.r * 0.9) + 'px serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillText(this.charData.icon, 0, 1);
+        }
 
         // ── Characteristic weapon visual ────────────────────────
         this._drawWeaponVisual(ctx, off);
 
+        ctx.restore();
+    }
+
+    // ── ESPECTRO SKIN — silueta sombría con acento dorado ─────────
+    _drawEspectro(ctx, t) {
+        const r = this.r;
+        const whip    = this.weapons.find(w => w.id === 'Whip');
+        const isSwing = !!(whip && whip.swingActive);
+        const prog    = isSwing ? whip.swingPhase : 0;
+
+        // Bob vertical suave (idle y durante movimiento)
+        const bob     = Math.sin(t * 4.5) * r * 0.06;
+        // Inclinación al atacar
+        const lean    = isSwing ? Math.sin(prog * Math.PI) * 0.18 : 0;
+        // Capa ondeando
+        const capeWave = Math.sin(t * 3.2) * 0.08;
+
+        ctx.save();
+        ctx.translate(0, bob);
+        ctx.rotate(lean);
+
+        const gold   = `#ffcc44`;
+        const dark   = `#0a0a12`;
+        const mid    = `#1a1020`;
+
+        // ── 1. SOMBRA DEL SUELO ───────────────────────────────────
+        ctx.globalAlpha = 0.3 + Math.sin(t * 3) * 0.05;
+        ctx.fillStyle   = '#000000';
+        ctx.beginPath();
+        ctx.ellipse(0, r * 1.15, r * 0.9, r * 0.22, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ── 2. CUERPO — silueta cónica (capa) ────────────────────
+        ctx.globalAlpha = 1;
+        ctx.shadowColor = gold;
+        ctx.shadowBlur  = 8 + Math.sin(t * 2) * 4;
+
+        // Capa exterior (forma de gota oscura)
+        const capeGrad = ctx.createRadialGradient(0, 0, r * 0.2, 0, r * 0.3, r * 1.4);
+        capeGrad.addColorStop(0,   mid);
+        capeGrad.addColorStop(0.6, dark);
+        capeGrad.addColorStop(1,   '#050508');
+        ctx.fillStyle = capeGrad;
+
+        ctx.beginPath();
+        ctx.moveTo(0, -r * 1.35);       // punta capucha
+        // Lado izquierdo de la capa (ondea)
+        ctx.bezierCurveTo(
+            -r * 0.55, -r * 0.6,
+            -r * (0.85 + capeWave), r * 0.4,
+            -r * (0.5 + capeWave * 0.5), r * 1.1
+        );
+        // Borde inferior
+        ctx.bezierCurveTo(-r * 0.2, r * 1.25, r * 0.2, r * 1.25, r * (0.5 + capeWave * 0.5), r * 1.1);
+        // Lado derecho de la capa
+        ctx.bezierCurveTo(
+            r * (0.85 - capeWave), r * 0.4,
+            r * 0.55, -r * 0.6,
+            0, -r * 1.35
+        );
+        ctx.closePath();
+        ctx.fill();
+
+        // ── 3. CAPUCHA — círculo oscuro en la cabeza ─────────────
+        ctx.shadowBlur = 0;
+        ctx.fillStyle  = dark;
+        ctx.beginPath();
+        ctx.arc(0, -r * 0.72, r * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ── 4. OJOS — dos puntos dorados que brillan ─────────────
+        const eyePulse = 0.7 + Math.sin(t * 5.5) * 0.3;
+        const eyeGlow  = isSwing ? 1.0 : eyePulse;
+        ctx.globalAlpha = eyeGlow;
+        ctx.fillStyle   = gold;
+        ctx.shadowColor = gold;
+        ctx.shadowBlur  = 10 + eyeGlow * 8;
+        // Ojo izquierdo
+        ctx.beginPath(); ctx.arc(-r * 0.13, -r * 0.76, r * 0.07, 0, Math.PI * 2); ctx.fill();
+        // Ojo derecho
+        ctx.beginPath(); ctx.arc( r * 0.13, -r * 0.76, r * 0.07, 0, Math.PI * 2); ctx.fill();
+
+        // ── 5. BORDE DORADO DE LA CAPA (acento) ──────────────────
+        ctx.globalAlpha = 0.5 + Math.sin(t * 2.8) * 0.15;
+        ctx.strokeStyle = gold;
+        ctx.shadowColor = gold;
+        ctx.shadowBlur  = 6;
+        ctx.lineWidth   = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(0, -r * 1.35);
+        ctx.bezierCurveTo(
+            -r * 0.55, -r * 0.6,
+            -r * (0.85 + capeWave), r * 0.4,
+            -r * (0.5 + capeWave * 0.5), r * 1.1
+        );
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, -r * 1.35);
+        ctx.bezierCurveTo(
+            r * 0.55, -r * 0.6,
+            r * (0.85 - capeWave), r * 0.4,
+            r * (0.5 + capeWave * 0.5), r * 1.1
+        );
+        ctx.stroke();
+
+        // ── 6. PARTÍCULA FLOTANTE de energía dorada ──────────────
+        const orbAng = t * 2.2;
+        const orbR   = r * 1.0;
+        ctx.globalAlpha = 0.55 + Math.sin(t * 4) * 0.2;
+        ctx.fillStyle   = gold;
+        ctx.shadowColor = gold;
+        ctx.shadowBlur  = 14;
+        ctx.beginPath();
+        ctx.arc(
+            Math.cos(orbAng) * orbR,
+            Math.sin(orbAng) * orbR * 0.4 - r * 0.2,
+            r * 0.07, 0, Math.PI * 2
+        );
+        ctx.fill();
+
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur  = 0;
+        ctx.restore();
+    }
+
+    // ── ARCANO SKIN — Zale: sombra mágica con partículas azules ──
+    _drawArcano(ctx, t) {
+        const r = this.r;
+        // Init particle system once
+        if (!this._arcanoParticles) {
+            this._arcanoParticles = Array.from({length: 18}, (_, i) => ({
+                a:     (i / 18) * Math.PI * 2,
+                orbitR: 28 + Math.random() * 16,
+                speed:  0.5 + Math.random() * 0.8,
+                size:   1.2 + Math.random() * 2,
+                phase:  Math.random() * Math.PI * 2,
+                // burst state
+                bursting: false,
+                bx: 0, by: 0, bvx: 0, bvy: 0, blife: 0,
+            }));
+        }
+
+        // Detect attack (Wand fires when projectile just spawned)
+        const wand = this.weapons.find(w => w.id === 'MagicWand');
+        const isAttacking = !!(wand && wand.timer < 0.08);
+        const faceAng = this._aimAngle || 0;
+
+        const bob = Math.sin(t * 4.2) * r * 0.05;
+        const lean = isAttacking ? 0.12 : 0;
+        const cw   = Math.sin(t * 3.0) * 0.07;
+
+        ctx.save();
+        ctx.translate(0, bob);
+        ctx.rotate(lean);
+
+        // ── 1. Shadow on ground ──────────────────────────────────
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.ellipse(0, r * 1.12, r * 0.85, r * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ── 2. Cape body ─────────────────────────────────────────
+        ctx.globalAlpha = 1;
+        const capeGrad = ctx.createRadialGradient(0, 0, r*0.2, 0, r*0.3, r*1.4);
+        capeGrad.addColorStop(0,   '#0d0d2a');
+        capeGrad.addColorStop(0.6, '#060618');
+        capeGrad.addColorStop(1,   '#020210');
+        ctx.fillStyle   = capeGrad;
+        ctx.shadowColor = '#4466ff';
+        ctx.shadowBlur  = 10 + Math.sin(t*2)*4;
+        ctx.beginPath();
+        ctx.moveTo(0, -r * 1.35);
+        ctx.bezierCurveTo(-r*(0.52+cw), -r*0.55, -r*(0.88+cw), r*0.45, -r*0.52, r*1.1);
+        ctx.bezierCurveTo(-r*0.18, r*1.22, r*0.18, r*1.22, r*0.52, r*1.1);
+        ctx.bezierCurveTo(r*(0.88-cw), r*0.45, r*(0.52-cw), -r*0.55, 0, -r*1.35);
+        ctx.closePath();
+        ctx.fill();
+
+        // ── 3. Hood ───────────────────────────────────────────────
+        ctx.shadowBlur = 0;
+        ctx.fillStyle  = '#070718';
+        ctx.beginPath();
+        ctx.arc(0, -r*0.72, r*0.43, 0, Math.PI*2);
+        ctx.fill();
+
+        // ── 4. Eyes — blue glowing ────────────────────────────────
+        const ep = 0.6 + Math.sin(t*5.5)*0.4;
+        const eg = isAttacking ? 1.0 : ep;
+        ctx.globalAlpha = eg;
+        ctx.fillStyle   = '#4466ff';
+        ctx.shadowColor = '#4466ff';
+        ctx.shadowBlur  = 12 + eg * 8;
+        ctx.beginPath(); ctx.arc(-r*0.13, -r*0.77, r*0.07, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc( r*0.13, -r*0.77, r*0.07, 0, Math.PI*2); ctx.fill();
+
+        // ── 5. Cape edge accent (blue) ────────────────────────────
+        ctx.globalAlpha = 0.45 + Math.sin(t*2.5)*0.15;
+        ctx.strokeStyle = '#4466ff';
+        ctx.shadowColor = '#4466ff';
+        ctx.shadowBlur  = 5;
+        ctx.lineWidth   = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(0, -r*1.35);
+        ctx.bezierCurveTo(-r*(0.52+cw), -r*0.55, -r*(0.88+cw), r*0.45, -r*0.52, r*1.1);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, -r*1.35);
+        ctx.bezierCurveTo(r*(0.52-cw), -r*0.55, r*(0.88-cw), r*0.45, r*0.52, r*1.1);
+        ctx.stroke();
+
+        // ── 6. Particles ─────────────────────────────────────────
+        const particles = this._arcanoParticles;
+        particles.forEach(p => {
+            if (isAttacking && !p.bursting) {
+                // All particles converge toward the facing angle (tight cone, not spread)
+                p.bursting = true;
+                p.bx = Math.cos(p.a) * p.orbitR;
+                p.by = Math.sin(p.a) * p.orbitR * 0.5 - r*0.2;
+                // Tight spread: ±15° around faceAng so they fly together
+                const spread = (Math.random() - 0.5) * 0.26;
+                const spd    = 220 + Math.random() * 80;
+                p.bvx = Math.cos(faceAng + spread) * spd;
+                p.bvy = Math.sin(faceAng + spread) * spd;
+                p.blife = 1.0;
+            }
+
+            if (p.bursting) {
+                p.blife -= 0.038;
+                if (p.blife <= 0) { p.bursting = false; return; }
+                p.bx += p.bvx * 0.016;
+                p.by += p.bvy * 0.016;
+
+                ctx.globalAlpha = p.blife * 0.9;
+                ctx.fillStyle   = '#4466ff';
+                ctx.shadowColor = '#4466ff';
+                ctx.shadowBlur  = 10;
+                ctx.beginPath();
+                ctx.arc(p.bx, p.by, p.size * (0.5 + p.blife), 0, Math.PI*2);
+                ctx.fill();
+            } else {
+                // Orbit
+                p.a += p.speed * 0.016;
+                const px = Math.cos(p.a) * p.orbitR;
+                const py = Math.sin(p.a) * p.orbitR * 0.5 - r*0.2;
+                const alpha = 0.35 + Math.sin(t*3+p.phase)*0.45;
+                ctx.globalAlpha = Math.max(0.05, alpha);
+                ctx.fillStyle   = '#4466ff';
+                ctx.shadowColor = '#4466ff';
+                ctx.shadowBlur  = 6;
+                ctx.beginPath();
+                ctx.arc(px, py, p.size, 0, Math.PI*2);
+                ctx.fill();
+            }
+        });
+
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur  = 0;
         ctx.restore();
     }
 

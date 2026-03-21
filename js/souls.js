@@ -223,17 +223,33 @@ const Souls = {
             const isOwned    = owned.includes(item.id);
             const isEquipped = equipped === item.id;
             const canAfford  = total >= item.cost;
+
+            // Build buy button: PayPal skins show both options
+            let buyBtn;
+            if (isEquipped) {
+                buyBtn = `<button class="shop-btn shop-btn-equipped" disabled>✓ EQUIPADA</button>`;
+            } else if (isOwned) {
+                buyBtn = `<button class="shop-btn shop-btn-equip" onclick="Souls.equipSkin('${item.id}');Souls.renderShop()">EQUIPAR</button>`;
+            } else if (item.paypal) {
+                const amt = item.paypalAmt || '1';
+                buyBtn = `<div class="shop-dual-buy">
+                    <button class="shop-btn ${canAfford?'shop-btn-buy':'shop-btn-locked'}" onclick="Souls._tryBuy('${item.id}')" ${!canAfford?'disabled':''}>
+                        ${canAfford?'👻 '+item.cost:'🔒 '+item.cost}
+                    </button>
+                    <a class="shop-btn shop-btn-paypal" href="https://paypal.me/JoaLDC/${amt}" target="_blank" rel="noopener" onclick="Souls._unlockAfterPaypal('${item.id}')">
+                        💳 $${amt}
+                    </a>
+                </div>`;
+            } else {
+                buyBtn = `<button class="shop-btn ${canAfford?'shop-btn-buy':'shop-btn-locked'}" onclick="Souls._tryBuy('${item.id}')" ${!canAfford?'disabled':''}>
+                    ${canAfford?'👻 '+item.cost:'🔒 '+item.cost}</button>`;
+            }
+
             html += `<div class="shop-item ${isOwned?'shop-owned':''} ${isEquipped?'shop-equipped':''} ${!isOwned&&!canAfford?'shop-cant-afford':''}">
                 <div class="shop-item-icon" style="background:${item.color};box-shadow:0 0 12px ${item.color}44"></div>
                 <div class="shop-item-name">${item.name}</div>
                 <div class="shop-item-desc">${item.desc}</div>
-                ${isEquipped
-                    ? `<button class="shop-btn shop-btn-equipped" disabled>✓ EQUIPADA</button>`
-                    : isOwned
-                    ? `<button class="shop-btn shop-btn-equip" onclick="Souls.equipSkin('${item.id}');Souls.renderShop()">EQUIPAR</button>`
-                    : `<button class="shop-btn ${canAfford?'shop-btn-buy':'shop-btn-locked'}" onclick="Souls._tryBuy('${item.id}')" ${!canAfford?'disabled':''}>
-                        ${canAfford?'👻 '+item.cost:'🔒 '+item.cost}</button>`
-                }
+                ${buyBtn}
             </div>`;
         });
         html += `</div>`;
@@ -317,6 +333,30 @@ const Souls = {
         }
     },
 
+    // PayPal purchase flow: open PayPal then show confirmation dialog
+    _unlockAfterPaypal(itemId) {
+        // Give PayPal a moment to open, then ask user to confirm payment
+        setTimeout(() => {
+            const confirmed = confirm(
+                '¿Completaste el pago de $1 en PayPal?\n\n' +
+                'Si lo hiciste, presiona OK para desbloquear la skin.\n' +
+                'Si cancelaste el pago, presiona Cancelar.'
+            );
+            if (confirmed) {
+                // Force-add to owned without deducting souls
+                const o = this.owned;
+                if (!o.includes(itemId)) {
+                    o.push(itemId);
+                    this._confirmed.owned = o;
+                    this._scheduleSave();
+                }
+                this.equipSkin(itemId);
+                this.renderShop();
+                alert('✅ ¡Skin Espectro desbloqueada! Gracias por tu apoyo 🙏');
+            }
+        }, 2000);
+    },
+
     // ── Apply passives to player at game start ────────────────────
     applyPassives(player) {
         const p = this.passives;
@@ -342,7 +382,8 @@ const SHOP_ITEMS = [
     { id:'skin_void',     type:'skin', name:'Vacío Violeta',   desc:'Oscuridad pura',            cost:300, color:'#aa44ff' },
     { id:'skin_ice',      type:'skin', name:'Tormenta Glacial',desc:'Azul hielo pulsante',       cost:500, color:'#44ddff' },
     { id:'skin_shadow',   type:'skin', name:'Sombra Eterna',   desc:'Gris ceniza espectral',     cost:800, color:'#888899' },
-    { id:'skin_alaric_golden', type:'skin', name:'Filo Dorado ⚔️', desc:'Espada negra con venas doradas. Alaric porta el Filo de la Luna.', cost:1000, color:'#1a1a00', special:'alaric_golden' },
+    { id:'skin_espectro', type:'skin', name:'Espectro 👻',     desc:'Silueta sombría con acento dorado. Solo para Alaric.', cost:1000, color:'#111111', special:'espectro', paypal:true, paypalAmt:'0.49' },
+    { id:'skin_arcano',   type:'skin', name:'Arcano ✨',       desc:'Sombra mágica con partículas azules. Solo para Zale.',  cost:1000, color:'#0a0a2a', special:'arcano',   paypal:true, paypalAmt:'0.49' },
 
     // Passives
     { id:'passive_hp',       type:'passive', icon:'❤️', name:'+12% Vida máx',   desc:'Empiezas cada partida con más vida',             cost:120 },

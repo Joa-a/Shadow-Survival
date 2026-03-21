@@ -1423,14 +1423,27 @@ const Game = {
         };
         updateRerollBtn();
         if (rerollBtn) {
+            // Remove old handlers completely before rebinding
+            const fresh = rerollBtn.cloneNode(true);
+            rerollBtn.parentNode.replaceChild(fresh, rerollBtn);
+            const btn = document.getElementById('btn-reroll');
+            // Single handler — touchend only on mobile (prevents double-fire)
+            let _rerolling = false;
             const doReroll = () => {
+                if (_rerolling) return;
                 if (!Souls.useReroll()) return;
+                _rerolling = true;
                 AudioEngine.sfxPowerup && AudioEngine.sfxPowerup();
-                // Rebuild options WITHOUT re-granting (level hasn't changed)
+                this.state = 'LEVELUP'; // ensure state stays correct
                 this._buildLevelUpOptions();
+                setTimeout(() => { _rerolling = false; }, 300);
             };
-            rerollBtn.onclick    = doReroll;
-            rerollBtn.ontouchend = e => { e.preventDefault(); doReroll(); };
+            btn.addEventListener('click',    doReroll);
+            btn.addEventListener('touchend', e => { e.preventDefault(); doReroll(); });
+            // Re-sync count after clone
+            const rc = document.getElementById('reroll-count');
+            if (rc) rc.textContent = Souls._runRerolls;
+            btn.style.display = Souls._runRerolls > 0 ? 'block' : 'none';
         }
 
         document.getElementById('levelup-screen').style.display = 'flex';
